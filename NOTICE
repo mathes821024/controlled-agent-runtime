@@ -1,0 +1,8 @@
+Controlled Agent Runtime
+Copyright 2026 Controlled Agent Runtime contributors
+
+This project was informed by control-plane patterns extracted from a private,
+synthetic prototype named payment-controlled-agent. No private business source,
+credentials, endpoints, production configuration, customer data, or proprietary
+payloads are included. See docs/inception/05-extraction-source.md.
+

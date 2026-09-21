@@ -1,0 +1,54 @@
+{
+  "schema_version": "0.1.0",
+  "seed_id": "seed-01",
+  "title": "Synthetic verified full refund through mock adapter",
+  "data_mode": "synthetic_only",
+  "policy_ref": "demo.refund.full.v1@1.0.0",
+  "trusted_context": {
+    "principal_id": "principal_demo_001",
+    "tenant_id": "tenant_demo_001",
+    "application_id": "app_demo_001"
+  },
+  "proposal": {
+    "intent": "refund",
+    "original_order_id": "order_demo_001",
+    "requested_amount_minor": 10000,
+    "merchant_email": "merchant-seed01@example.invalid"
+  },
+  "tool_fixtures": {
+    "transaction_query_tool": {
+      "found": true,
+      "business_code": "00",
+      "transaction_status": "success",
+      "resource_ref": "txn_demo_001",
+      "resource_ref_source": "transaction_query_tool",
+      "original_amount_minor": 10000
+    },
+    "mock_refund_adapter": {
+      "transport_status": "success",
+      "protocol_status": "success",
+      "schema_status": "success",
+      "business_code": "00",
+      "business_status": "success"
+    }
+  },
+  "expected": {
+    "outcome": "executed",
+    "reason_code": "mock_business_success",
+    "adapter_call_count": 1,
+    "required_event_order": [
+      "proposal_received",
+      "proposal_validated",
+      "trusted_context_bound",
+      "authoritative_facts_loaded",
+      "policy_decided",
+      "state_revalidated",
+      "idempotency_reserved",
+      "mock_adapter_called",
+      "result_normalized",
+      "trace_completed"
+    ],
+    "forbidden_events": ["real_adapter_called", "production_data_loaded"]
+  }
+}
+

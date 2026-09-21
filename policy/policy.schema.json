@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/controlled-agent-runtime/policy.schema.json",
+  "title": "Controlled Agent Policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "policy_id", "policy_version", "status", "data_mode",
+    "default_effect", "proposal", "trusted_context", "authoritative_facts",
+    "rules", "execution_guards", "audit"
+  ],
+  "properties": {
+    "schema_version": {"const": "0.1.0"},
+    "policy_id": {"type": "string", "minLength": 3},
+    "policy_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "status": {"enum": ["draft", "accepted", "deprecated"]},
+    "data_mode": {"enum": ["synthetic_only", "test", "production"]},
+    "default_effect": {"const": "deny"},
+    "proposal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowed_fields", "forbidden_fields"],
+      "properties": {
+        "allowed_fields": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "forbidden_fields": {"type": "array", "items": {"type": "string"}, "minItems": 1, "uniqueItems": true}
+      }
+    },
+    "trusted_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required_fields"],
+      "properties": {
+        "required_fields": {"type": "array", "items": {"type": "string"}, "minItems": 1, "uniqueItems": true}
+      }
+    },
+    "authoritative_facts": {
+      "type": "object",
+      "additionalProperties": {"type": "string", "minLength": 1}
+    },
+    "rules": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["rule_id", "description", "when", "outcome"],
+        "properties": {
+          "rule_id": {"type": "string", "pattern": "^[A-Z]+-[0-9]+$"},
+          "description": {"type": "string", "minLength": 1},
+          "when": {"type": "object"},
+          "outcome": {"enum": ["deny", "needs_input", "needs_review", "allow_execution"]},
+          "reason_code": {"type": "string"}
+        }
+      }
+    },
+    "execution_guards": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pre_execution_revalidation", "idempotency", "human_authorization", "real_adapters_enabled"],
+      "properties": {
+        "pre_execution_revalidation": {"const": true},
+        "idempotency": {"const": true},
+        "human_authorization": {"enum": ["when_required", "always", "disabled"]},
+        "real_adapters_enabled": {"type": "boolean"}
+      }
+    },
+    "audit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required_event_order", "forbidden_events_without_execution"],
+      "properties": {
+        "required_event_order": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+        "forbidden_events_without_execution": {"type": "array", "items": {"type": "string"}}
+      }
+    }
+  }
+}
+

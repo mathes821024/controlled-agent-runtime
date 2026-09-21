@@ -1,0 +1,77 @@
+{
+  "schema_version": "0.1.0",
+  "policy_id": "demo.refund.full.v1",
+  "policy_version": "1.0.0",
+  "status": "draft",
+  "data_mode": "synthetic_only",
+  "default_effect": "deny",
+  "proposal": {
+    "allowed_fields": ["intent", "original_order_id", "requested_amount_minor", "merchant_email"],
+    "forbidden_fields": [
+      "principal_id", "tenant_id", "resource_ref", "authorized_by",
+      "approval_status", "idempotency_key", "execution_token", "adapter_result"
+    ]
+  },
+  "trusted_context": {
+    "required_fields": ["principal_id", "tenant_id", "application_id"]
+  },
+  "authoritative_facts": {
+    "resource_ref": "transaction_query_tool",
+    "original_amount_minor": "transaction_query_tool",
+    "transaction_status": "transaction_query_tool",
+    "authorized_by": "human_review_service",
+    "adapter_result": "refund_adapter_normalizer"
+  },
+  "rules": [
+    {
+      "rule_id": "R-01",
+      "description": "Unsupported intent is denied",
+      "when": {"proposal.intent_not_equals": "refund"},
+      "outcome": "deny",
+      "reason_code": "unsupported_intent"
+    },
+    {
+      "rule_id": "R-02",
+      "description": "Missing required proposal fields requests bounded clarification",
+      "when": {"required_proposal_field_missing": true},
+      "outcome": "needs_input",
+      "reason_code": "required_field_missing"
+    },
+    {
+      "rule_id": "R-03",
+      "description": "Requested amount must equal authoritative original amount",
+      "when": {"proposal.requested_amount_minor_not_equals": "facts.original_amount_minor"},
+      "outcome": "deny",
+      "reason_code": "full_refund_only"
+    },
+    {
+      "rule_id": "R-04",
+      "description": "Synthetic amounts above the demo threshold require human review",
+      "when": {"proposal.requested_amount_minor_greater_than": 10000},
+      "outcome": "needs_review",
+      "reason_code": "demo_amount_threshold"
+    },
+    {
+      "rule_id": "R-05",
+      "description": "A verified synthetic full refund may reach execution guards",
+      "when": {"all_prior_rules_pass": true},
+      "outcome": "allow_execution",
+      "reason_code": "eligible_for_guards"
+    }
+  ],
+  "execution_guards": {
+    "pre_execution_revalidation": true,
+    "idempotency": true,
+    "human_authorization": "when_required",
+    "real_adapters_enabled": false
+  },
+  "audit": {
+    "required_event_order": [
+      "proposal_received", "proposal_validated", "trusted_context_bound",
+      "authoritative_facts_loaded", "policy_decided", "state_revalidated",
+      "idempotency_reserved", "mock_adapter_called", "result_normalized", "trace_completed"
+    ],
+    "forbidden_events_without_execution": ["mock_adapter_called", "real_adapter_called"]
+  }
+}
+
