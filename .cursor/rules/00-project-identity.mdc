@@ -1,0 +1,39 @@
+---
+description: "Project identity and Mac AI workstation topology. Applies before any role."
+alwaysApply: true
+---
+
+# Project identity
+
+This repository is `controlled-agent-runtime`.
+
+Expected repo root: `/Users/xyl/Documents/workAI/controlled-agent-runtime`.
+
+Before the first edit, confirm `git rev-parse --show-toplevel`. If it is not that root, stop and edit nothing.
+
+Do not import product contracts, page designs, or business assumptions from another project. This repository is not `ai-team-relay`.
+
+# Workstation
+
+Roles are ways of thinking. They are not tied to a second computer.
+
+```text
+Owner
+  → ChatGPT (Mac): control, Gate Review, architecture judgment, task split, instruct Grok Bot, retro
+  → Mac Cursor: Design Station. @ one of Product Manager, UX Architect, UI Designer, Backend Architect
+  → Mac Grok Bot: primary engineer. code, tests, fixes, git, test-environment deploy
+  → GitHub: the only remote source of truth
+  → 51.81.146.19: later Human Acceptance Environment
+```
+
+Another Cursor account is capacity backup for the same Mac workspace, not another workstation.
+
+Main line: Think → See → Decide → Freeze → Build → Verify. All of it can happen on one Mac.
+
+# Single writer
+
+Only one agent holds the write mindset at a time. Others may read and recommend. They do not edit the same files in parallel.
+
+Naming a role with `@` does not grant `edit`, `commit`, `push`, `deploy`, or `production_access`. Those stay separate and default to false.
+
+`51.81.146.19` is a future acceptance host. Naming it does not authorize deployment, and no credentials belong in this repo. Adapters and deployment configuration still need a separate reviewed gate.

@@ -16,4 +16,5 @@
 - [ADR-0001: authority separation](adr/0001-separate-proposal-from-authority.md)
 - [ADR-0002: fail closed](adr/0002-fail-closed-by-default.md)
 - [Engineering governance](governance/engineering-governance.md)
+- [AI workstation](governance/ai-workstation.md)
 - [Public release checklist](governance/public-release-checklist.md)

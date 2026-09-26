@@ -6,6 +6,10 @@
 - **Maintainers:** review repository changes and releases within an admitted gate.
 - **Contributors:** propose changes with evidence and respect project boundaries.
 
+AI roles on the Mac workstation think, review, or implement within those human
+gates. They do not replace the Owner. The operating map is
+[`docs/governance/ai-workstation.md`](docs/governance/ai-workstation.md).
+
 ## Decision model
 
 Material changes use an issue or ADR and record context, decision, alternatives,

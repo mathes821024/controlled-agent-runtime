@@ -14,3 +14,14 @@ This repository is at Gate 0 / Inception.
   reviewed gate decision.
 - Run `make check` and `make test` before claiming completion.
 
+## AI workstation
+
+Collaboration uses one Mac workstation: Think → See → Decide → Freeze → Build →
+Verify. See [`docs/governance/ai-workstation.md`](docs/governance/ai-workstation.md).
+
+- ChatGPT controls and reviews. Mac Cursor holds one design role at a time.
+  Mac Grok Bot is the primary engineer. GitHub is the only remote source of truth.
+- Another Cursor account is capacity backup for this same workspace, not another
+  workstation.
+- Only one agent writes at a time. `@role` does not grant commit, push, or deploy.
+
