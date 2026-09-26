@@ -11,7 +11,7 @@
 
 - [Gate 0 / Inception 总览](docs/inception/00-overview.md)
 - [Policy 说明](policy/README.md)
-- [Demo Seed 说明](demo-seeds/README.md)
+- [Demo Seed 说明](demo-seeds/README.md)（`future_conformance_expectation`：描述未来 Runtime 应满足的期望，不是本仓库已执行证据）
 - [工程治理](docs/governance/engineering-governance.md)
 - [公开发布检查表](docs/governance/public-release-checklist.md)
 

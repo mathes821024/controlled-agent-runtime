@@ -5,37 +5,96 @@
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "schema_version", "policy_id", "policy_version", "status", "data_mode",
-    "default_effect", "proposal", "trusted_context", "authoritative_facts",
-    "rules", "execution_guards", "audit"
+    "schema_version",
+    "policy_id",
+    "policy_version",
+    "status",
+    "data_mode",
+    "default_effect",
+    "proposal",
+    "trusted_context",
+    "authoritative_facts",
+    "rules",
+    "execution_guards",
+    "audit"
   ],
   "properties": {
-    "schema_version": {"const": "0.1.0"},
-    "policy_id": {"type": "string", "minLength": 3},
-    "policy_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
-    "status": {"enum": ["draft", "accepted", "deprecated"]},
-    "data_mode": {"enum": ["synthetic_only", "test", "production"]},
-    "default_effect": {"const": "deny"},
+    "schema_version": {
+      "const": "0.1.0"
+    },
+    "policy_id": {
+      "type": "string",
+      "minLength": 3
+    },
+    "policy_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "status": {
+      "enum": [
+        "draft",
+        "accepted",
+        "deprecated"
+      ]
+    },
+    "data_mode": {
+      "enum": [
+        "synthetic_only",
+        "test",
+        "production"
+      ]
+    },
+    "default_effect": {
+      "const": "deny"
+    },
     "proposal": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["allowed_fields", "forbidden_fields"],
+      "required": [
+        "allowed_fields",
+        "forbidden_fields"
+      ],
       "properties": {
-        "allowed_fields": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
-        "forbidden_fields": {"type": "array", "items": {"type": "string"}, "minItems": 1, "uniqueItems": true}
+        "allowed_fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "forbidden_fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        }
       }
     },
     "trusted_context": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["required_fields"],
+      "required": [
+        "required_fields"
+      ],
       "properties": {
-        "required_fields": {"type": "array", "items": {"type": "string"}, "minItems": 1, "uniqueItems": true}
+        "required_fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        }
       }
     },
     "authoritative_facts": {
       "type": "object",
-      "additionalProperties": {"type": "string", "minLength": 1}
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1
+      }
     },
     "rules": {
       "type": "array",
@@ -43,36 +102,206 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["rule_id", "description", "when", "outcome"],
+        "required": [
+          "rule_id",
+          "description",
+          "when",
+          "outcome"
+        ],
         "properties": {
-          "rule_id": {"type": "string", "pattern": "^[A-Z]+-[0-9]+$"},
-          "description": {"type": "string", "minLength": 1},
-          "when": {"type": "object"},
-          "outcome": {"enum": ["deny", "needs_input", "needs_review", "allow_execution"]},
-          "reason_code": {"type": "string"}
+          "rule_id": {
+            "type": "string",
+            "pattern": "^[A-Z]+-[0-9]+$"
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1
+          },
+          "when": {
+            "type": "object"
+          },
+          "outcome": {
+            "enum": [
+              "deny",
+              "needs_input",
+              "needs_review",
+              "allow_execution"
+            ]
+          },
+          "reason_code": {
+            "type": "string"
+          }
         }
       }
     },
     "execution_guards": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["pre_execution_revalidation", "idempotency", "human_authorization", "real_adapters_enabled"],
+      "required": [
+        "pre_execution_revalidation",
+        "idempotency",
+        "human_authorization",
+        "real_adapters_enabled"
+      ],
       "properties": {
-        "pre_execution_revalidation": {"const": true},
-        "idempotency": {"const": true},
-        "human_authorization": {"enum": ["when_required", "always", "disabled"]},
-        "real_adapters_enabled": {"type": "boolean"}
+        "pre_execution_revalidation": {
+          "const": true
+        },
+        "idempotency": {
+          "const": true
+        },
+        "human_authorization": {
+          "enum": [
+            "when_required",
+            "always",
+            "disabled"
+          ]
+        },
+        "real_adapters_enabled": {
+          "type": "boolean"
+        }
       }
     },
     "audit": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["required_event_order", "forbidden_events_without_execution"],
+      "required": [
+        "required_event_order",
+        "forbidden_events_without_execution"
+      ],
       "properties": {
-        "required_event_order": {"type": "array", "items": {"type": "string"}, "minItems": 1},
-        "forbidden_events_without_execution": {"type": "array", "items": {"type": "string"}}
+        "required_event_order": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "forbidden_events_without_execution": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "money": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "currency",
+        "representation",
+        "minor_units_per_major",
+        "hitl_threshold_exclusive_minor"
+      ],
+      "properties": {
+        "currency": {
+          "const": "CNY"
+        },
+        "representation": {
+          "const": "integer_minor_units"
+        },
+        "minor_units_per_major": {
+          "const": 100
+        },
+        "hitl_threshold_exclusive_minor": {
+          "const": 10000
+        },
+        "floating_amounts_allowed": {
+          "const": false
+        }
+      }
+    },
+    "condition_language": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "evaluator_requirements"
+      ],
+      "properties": {
+        "status": {
+          "const": "NOT_FROZEN"
+        },
+        "evaluator_requirements": {
+          "type": "array",
+          "minItems": 5,
+          "items": {
+            "enum": [
+              "deterministic",
+              "side_effect_free",
+              "fail_closed",
+              "schema_validated",
+              "versioned"
+            ]
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "refund_business_results": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "transport_protocol_business_separated",
+        "codes"
+      ],
+      "properties": {
+        "transport_protocol_business_separated": {
+          "const": true
+        },
+        "codes": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "00",
+            "12",
+            "other"
+          ],
+          "properties": {
+            "00": {
+              "const": "REFUND_SUCCEEDED"
+            },
+            "12": {
+              "const": "ALREADY_REFUNDED"
+            },
+            "other": {
+              "const": "REFUND_FAILED"
+            }
+          }
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "refund_order_no_demo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "construction",
+        "status"
+      ],
+      "properties": {
+        "construction": {
+          "const": "original_order_no + appid"
+        },
+        "status": {
+          "enum": [
+            "DEMO_CONTRACT",
+            "OPEN_QUESTION"
+          ]
+        },
+        "open_questions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     }
   }
 }
-

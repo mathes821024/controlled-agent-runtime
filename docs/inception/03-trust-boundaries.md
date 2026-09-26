@@ -17,7 +17,8 @@
 
 The example policy forbids model authority over `principal_id`, `tenant_id`,
 `resource_ref`, `authorized_by`, `approval_status`, `idempotency_key`,
-`execution_token`, and `adapter_result`. A future runtime may ignore forbidden
+`execution_token`, `adapter_result`, `original_amount_minor`,
+`refund_amount_minor`, and `respCode`. A future runtime may ignore forbidden
 fields for audit or reject the entire proposal; it must never trust them.
 
 ## Boundary rules

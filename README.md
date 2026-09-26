@@ -48,7 +48,7 @@ allowlisted adapter ---> normalized result + audit evidence
   open questions under [`docs/inception/`](docs/inception/).
 - A versioned, machine-readable policy contract and synthetic example under
   [`policy/`](policy/).
-- A schema-backed synthetic refund example under [`demo-seeds/`](demo-seeds/).
+- A schema-backed synthetic refund example under [`demo-seeds/`](demo-seeds/). Seeds are `future_conformance_expectation` vectors, not proof that a Runtime already executed.
 - Architecture Decision Records (ADRs), engineering governance, security policy,
   contribution guide, and public-release checklist.
 - A dependency-free validation command and CI workflow for repository contracts.

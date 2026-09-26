@@ -14,3 +14,7 @@
 No open question may be resolved implicitly by code. Record the decision in an ADR
 or update this register before implementation.
 
+| OQ-09 | What deterministic policy condition DSL is approved? | G1 evaluator | Keep status NOT_FROZEN; no CEL/JSONLogic/Rego/`expr` until ADR |
+| OQ-10 | How is demo `refund_order_no = original_order_no + appid` made collision-safe? | Idempotency identity | Keep OPEN_QUESTION; no hash/UUID/sequence invention in Gate 0 |
+| OQ-11 | How does `ALREADY_REFUNDED` (`respCode=12`) map to final normalized Runtime outcome? | Result normalization | Record contract codes now; defer final outcome mapping to Gate 1 ADR |
+

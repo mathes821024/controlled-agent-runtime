@@ -1,60 +1,131 @@
 {
   "schema_version": "0.1.0",
   "policy_id": "demo.refund.full.v1",
-  "policy_version": "1.0.0",
+  "policy_version": "1.0.1",
   "status": "draft",
   "data_mode": "synthetic_only",
   "default_effect": "deny",
+  "money": {
+    "currency": "CNY",
+    "representation": "integer_minor_units",
+    "minor_units_per_major": 100,
+    "hitl_threshold_exclusive_minor": 10000,
+    "floating_amounts_allowed": false
+  },
+  "condition_language": {
+    "status": "NOT_FROZEN",
+    "evaluator_requirements": [
+      "deterministic",
+      "side_effect_free",
+      "fail_closed",
+      "schema_validated",
+      "versioned"
+    ]
+  },
+  "refund_business_results": {
+    "transport_protocol_business_separated": true,
+    "codes": {
+      "00": "REFUND_SUCCEEDED",
+      "12": "ALREADY_REFUNDED",
+      "other": "REFUND_FAILED"
+    },
+    "notes": [
+      "respCode 12 means already refunded; it is not a new refund execution success.",
+      "Transport/protocol success alone never proves refund business success.",
+      "Normalized final outcome mapping for ALREADY_REFUNDED remains an OPEN QUESTION for Gate 1."
+    ]
+  },
+  "refund_order_no_demo": {
+    "construction": "original_order_no + appid",
+    "status": "OPEN_QUESTION",
+    "open_questions": [
+      "Delimiter ambiguity if fields are concatenated without separator",
+      "Collision risk across appid/order namespaces",
+      "Field length / downstream format limits"
+    ]
+  },
   "proposal": {
-    "allowed_fields": ["intent", "original_order_id", "requested_amount_minor", "merchant_email"],
+    "allowed_fields": [
+      "intent",
+      "appid",
+      "term_id",
+      "original_order_no",
+      "original_transaction_date",
+      "requested_amount_minor",
+      "merchant_email"
+    ],
     "forbidden_fields": [
-      "principal_id", "tenant_id", "resource_ref", "authorized_by",
-      "approval_status", "idempotency_key", "execution_token", "adapter_result"
+      "principal_id",
+      "tenant_id",
+      "resource_ref",
+      "authorized_by",
+      "approval_status",
+      "idempotency_key",
+      "execution_token",
+      "adapter_result",
+      "original_amount_minor",
+      "refund_amount_minor",
+      "respCode"
     ]
   },
   "trusted_context": {
-    "required_fields": ["principal_id", "tenant_id", "application_id"]
+    "required_fields": [
+      "principal_id",
+      "tenant_id",
+      "application_id"
+    ]
   },
   "authoritative_facts": {
     "resource_ref": "transaction_query_tool",
     "original_amount_minor": "transaction_query_tool",
     "transaction_status": "transaction_query_tool",
     "authorized_by": "human_review_service",
-    "adapter_result": "refund_adapter_normalizer"
+    "adapter_result": "refund_adapter_normalizer",
+    "respCode": "refund_adapter_normalizer"
   },
   "rules": [
     {
       "rule_id": "R-01",
       "description": "Unsupported intent is denied",
-      "when": {"proposal.intent_not_equals": "refund"},
+      "when": {
+        "proposal.intent_not_equals": "refund"
+      },
       "outcome": "deny",
       "reason_code": "unsupported_intent"
     },
     {
       "rule_id": "R-02",
       "description": "Missing required proposal fields requests bounded clarification",
-      "when": {"required_proposal_field_missing": true},
+      "when": {
+        "required_proposal_field_missing": true
+      },
       "outcome": "needs_input",
       "reason_code": "required_field_missing"
     },
     {
       "rule_id": "R-03",
-      "description": "Requested amount must equal authoritative original amount",
-      "when": {"proposal.requested_amount_minor_not_equals": "facts.original_amount_minor"},
+      "description": "Proposal requested_amount_minor is consistency-only; mismatch with authoritative original_amount_minor denies (full refund only). Proposal amount is never authoritative refund amount.",
+      "when": {
+        "proposal.requested_amount_minor_not_equals": "facts.original_amount_minor"
+      },
       "outcome": "deny",
       "reason_code": "full_refund_only"
     },
     {
       "rule_id": "R-04",
-      "description": "Synthetic amounts above the demo threshold require human review",
-      "when": {"proposal.requested_amount_minor_greater_than": 10000},
+      "description": "CNY integer minor units: amount_minor > 10000 (100.00 CNY) requires human review. amount_minor <= 10000 is only eligibility for later guards, not unconditional execution.",
+      "when": {
+        "proposal.requested_amount_minor_greater_than": 10000
+      },
       "outcome": "needs_review",
       "reason_code": "demo_amount_threshold"
     },
     {
       "rule_id": "R-05",
-      "description": "A verified synthetic full refund may reach execution guards",
-      "when": {"all_prior_rules_pass": true},
+      "description": "A verified synthetic full refund may reach execution guards after authoritative lookup and prior rules pass",
+      "when": {
+        "all_prior_rules_pass": true
+      },
       "outcome": "allow_execution",
       "reason_code": "eligible_for_guards"
     }
@@ -67,11 +138,21 @@
   },
   "audit": {
     "required_event_order": [
-      "proposal_received", "proposal_validated", "trusted_context_bound",
-      "authoritative_facts_loaded", "policy_decided", "state_revalidated",
-      "idempotency_reserved", "mock_adapter_called", "result_normalized", "trace_completed"
+      "proposal_received",
+      "proposal_validated",
+      "trusted_context_bound",
+      "authoritative_facts_loaded",
+      "policy_decided",
+      "state_revalidated",
+      "idempotency_reserved",
+      "mock_adapter_called",
+      "result_normalized",
+      "trace_completed"
     ],
-    "forbidden_events_without_execution": ["mock_adapter_called", "real_adapter_called"]
+    "forbidden_events_without_execution": [
+      "mock_adapter_called",
+      "real_adapter_called",
+      "refund_succeeded"
+    ]
   }
 }
-
