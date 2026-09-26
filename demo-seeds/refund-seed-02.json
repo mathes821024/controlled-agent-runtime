@@ -1,0 +1,52 @@
+{
+  "schema_version": "0.1.0",
+  "seed_id": "seed-02",
+  "title": "Amount above HITL threshold requires review (future conformance)",
+  "data_mode": "synthetic_only",
+  "policy_ref": "demo.refund.full.v1@1.0.1",
+  "expectation_kind": "future_conformance_expectation",
+  "trusted_context": {
+    "principal_id": "principal_demo_002",
+    "tenant_id": "tenant_demo_001",
+    "application_id": "app_demo_001"
+  },
+  "proposal": {
+    "intent": "refund",
+    "appid": "app_demo_001",
+    "term_id": "term_demo_002",
+    "original_order_no": "order_demo_002",
+    "original_transaction_date": "2026-09-01",
+    "requested_amount_minor": 10001,
+    "merchant_email": "merchant-seed02@example.invalid"
+  },
+  "tool_fixtures": {
+    "transaction_query_tool": {
+      "found": true,
+      "business_code": "00",
+      "transaction_status": "success",
+      "resource_ref": "txn_demo_002",
+      "resource_ref_source": "transaction_query_tool",
+      "original_amount_minor": 10001,
+      "currency": "CNY"
+    }
+  },
+  "expected": {
+    "outcome": "needs_review",
+    "reason_code": "demo_amount_threshold",
+    "adapter_call_count": 0,
+    "required_event_order": [
+      "proposal_received",
+      "proposal_validated",
+      "trusted_context_bound",
+      "authoritative_facts_loaded",
+      "policy_decided",
+      "trace_completed"
+    ],
+    "forbidden_events": [
+      "mock_adapter_called",
+      "real_adapter_called",
+      "refund_succeeded",
+      "production_data_loaded"
+    ]
+  }
+}

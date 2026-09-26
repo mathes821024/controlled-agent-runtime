@@ -1,9 +1,10 @@
 {
   "schema_version": "0.1.0",
   "seed_id": "seed-01",
-  "title": "Synthetic verified full refund through mock adapter",
+  "title": "Synthetic verified full refund through mock adapter (future conformance)",
   "data_mode": "synthetic_only",
-  "policy_ref": "demo.refund.full.v1@1.0.0",
+  "policy_ref": "demo.refund.full.v1@1.0.1",
+  "expectation_kind": "future_conformance_expectation",
   "trusted_context": {
     "principal_id": "principal_demo_001",
     "tenant_id": "tenant_demo_001",
@@ -11,7 +12,10 @@
   },
   "proposal": {
     "intent": "refund",
-    "original_order_id": "order_demo_001",
+    "appid": "app_demo_001",
+    "term_id": "term_demo_001",
+    "original_order_no": "order_demo_001",
+    "original_transaction_date": "2026-09-01",
     "requested_amount_minor": 10000,
     "merchant_email": "merchant-seed01@example.invalid"
   },
@@ -22,13 +26,15 @@
       "transaction_status": "success",
       "resource_ref": "txn_demo_001",
       "resource_ref_source": "transaction_query_tool",
-      "original_amount_minor": 10000
+      "original_amount_minor": 10000,
+      "currency": "CNY"
     },
     "mock_refund_adapter": {
       "transport_status": "success",
       "protocol_status": "success",
       "schema_status": "success",
-      "business_code": "00",
+      "respCode": "00",
+      "normalized_business_result": "REFUND_SUCCEEDED",
       "business_status": "success"
     }
   },
@@ -48,7 +54,9 @@
       "result_normalized",
       "trace_completed"
     ],
-    "forbidden_events": ["real_adapter_called", "production_data_loaded"]
+    "forbidden_events": [
+      "real_adapter_called",
+      "production_data_loaded"
+    ]
   }
 }
-

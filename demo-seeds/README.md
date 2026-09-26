@@ -1,12 +1,30 @@
 # Demo Seeds
 
 A Demo Seed is a deterministic, synthetic scenario that binds a policy, inputs,
-tool fixtures, expected decision, event order, and forbidden events. It is both a
-review artifact and a future conformance test vector.
+tool fixtures, expected decision, event order, and forbidden events.
 
-Seed-01 demonstrates a low-risk, full-refund-shaped flow using a mock adapter.
-The values are fictional and the example does not execute a real refund.
+## Expectation kind
+
+Every seed sets:
+
+```text
+expectation_kind = future_conformance_expectation
+```
+
+That means the seed describes what a **future** Runtime must produce for the
+given inputs and authoritative fixtures. It is **not** evidence that this
+repository has already executed a Runtime path. Local `make check` / `make test`
+only prove static contract invariants.
+
+## Current seeds
+
+| Seed | Scenario | Expected outcome |
+|---|---|---|
+| seed-01 (`refund-seed-01.json`) | Full refund at exactly 10000 minor (100.00 CNY), mock adapter `respCode=00` | `executed` (future) |
+| seed-02 (`refund-seed-02.json`) | `amount_minor > 10000` | `needs_review` |
+| seed-03 (`refund-seed-03.json`) | proposal amount != authoritative original | `denied` |
+
+Money uses CNY integer minor units only (`10000` = 100 yuan, never 10000 yuan).
 
 Validation checks schema shape and selected safety invariants. It does not prove
 that a Runtime implementation exists or that a real integration is safe.
-

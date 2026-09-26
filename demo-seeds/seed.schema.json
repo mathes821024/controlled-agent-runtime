@@ -5,30 +5,92 @@
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "schema_version", "seed_id", "title", "data_mode", "policy_ref",
-    "trusted_context", "proposal", "tool_fixtures", "expected"
+    "schema_version",
+    "seed_id",
+    "title",
+    "data_mode",
+    "policy_ref",
+    "expectation_kind",
+    "trusted_context",
+    "proposal",
+    "tool_fixtures",
+    "expected"
   ],
   "properties": {
-    "schema_version": {"const": "0.1.0"},
-    "seed_id": {"type": "string", "pattern": "^seed-[0-9]{2}$"},
-    "title": {"type": "string", "minLength": 1},
-    "data_mode": {"const": "synthetic_only"},
-    "policy_ref": {"type": "string", "minLength": 1},
-    "trusted_context": {"type": "object", "minProperties": 1},
-    "proposal": {"type": "object", "minProperties": 1},
-    "tool_fixtures": {"type": "object"},
+    "schema_version": {
+      "const": "0.1.0"
+    },
+    "seed_id": {
+      "type": "string",
+      "pattern": "^seed-[0-9]{2}$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "data_mode": {
+      "const": "synthetic_only"
+    },
+    "policy_ref": {
+      "type": "string",
+      "minLength": 1
+    },
+    "expectation_kind": {
+      "const": "future_conformance_expectation"
+    },
+    "trusted_context": {
+      "type": "object",
+      "minProperties": 1
+    },
+    "proposal": {
+      "type": "object",
+      "minProperties": 1
+    },
+    "tool_fixtures": {
+      "type": "object"
+    },
     "expected": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["outcome", "reason_code", "adapter_call_count", "required_event_order", "forbidden_events"],
+      "required": [
+        "outcome",
+        "reason_code",
+        "adapter_call_count",
+        "required_event_order",
+        "forbidden_events"
+      ],
       "properties": {
-        "outcome": {"enum": ["denied", "needs_input", "needs_review", "executed", "failed"]},
-        "reason_code": {"type": "string"},
-        "adapter_call_count": {"type": "integer", "minimum": 0, "maximum": 1},
-        "required_event_order": {"type": "array", "items": {"type": "string"}, "minItems": 1},
-        "forbidden_events": {"type": "array", "items": {"type": "string"}}
+        "outcome": {
+          "enum": [
+            "denied",
+            "needs_input",
+            "needs_review",
+            "executed",
+            "failed"
+          ]
+        },
+        "reason_code": {
+          "type": "string"
+        },
+        "adapter_call_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "required_event_order": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "forbidden_events": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     }
   }
 }
-
