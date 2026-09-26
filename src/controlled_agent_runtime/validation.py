@@ -12,6 +12,7 @@ from typing import Any
 PROTECTED_FIELDS = {
     "principal_id",
     "tenant_id",
+    "application_id",
     "resource_ref",
     "authorized_by",
     "approval_status",

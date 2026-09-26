@@ -8,6 +8,10 @@ frozen.
 
 ### Changed
 
+- Gate 0 Review Fix 02: add `application_id` to proposal forbidden /
+  `PROTECTED_FIELDS` so trusted-context identity matches principal/tenant;
+  refresh `docs/01_prd.md` baseline facts to current GitHub main (still Draft).
+
 - Gate 0 Contract Freeze Review Fix 01: CNY minor-unit money contract, HITL
   threshold semantics, seed `future_conformance_expectation`, refund `respCode`
   mapping, and explicit NOT_FROZEN policy condition language.

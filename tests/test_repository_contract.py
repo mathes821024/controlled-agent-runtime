@@ -30,6 +30,28 @@ class RepositoryContractTests(unittest.TestCase):
         self.assertIn("refund_amount_minor", forbidden)
         self.assertIn("respCode", forbidden)
 
+    def test_application_id_is_trusted_context_and_forbidden(self) -> None:
+        """Identity fields required in trusted context must be proposal-forbidden.
+
+        `application_id` is authenticated runtime/application identity.
+        `appid` remains a refund business locator allowed on proposals.
+        """
+        policy = json.loads(
+            (ROOT / "policy/examples/refund-demo-policy.json").read_text(encoding="utf-8")
+        )
+        forbidden = set(policy["proposal"]["forbidden_fields"])
+        allowed = set(policy["proposal"]["allowed_fields"])
+        required_ctx = set(policy["trusted_context"]["required_fields"])
+        identity = {"principal_id", "tenant_id", "application_id"}
+        self.assertTrue(identity <= required_ctx)
+        self.assertTrue(identity <= forbidden)
+        self.assertTrue(identity <= PROTECTED_FIELDS)
+        self.assertIn("application_id", forbidden)
+        self.assertIn("application_id", PROTECTED_FIELDS)
+        self.assertNotIn("application_id", allowed)
+        self.assertIn("appid", allowed)
+        self.assertNotIn("appid", forbidden)
+
     def test_money_unit_and_hitl_threshold_contract(self) -> None:
         policy = json.loads(
             (ROOT / "policy/examples/refund-demo-policy.json").read_text(encoding="utf-8")
