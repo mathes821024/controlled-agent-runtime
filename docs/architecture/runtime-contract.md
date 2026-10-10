@@ -40,3 +40,7 @@ Unknown policy, unknown status, unsupported schema, missing fact provenance,
 timeout, malformed response, approval mismatch, state change, or idempotency
 conflict returns a typed non-executing outcome.
 
+## Surrounds (not part of this contract)
+
+Local LLM / ASR / TTS and Docker persistence are planned surrounds. They must
+obey the invariants above. See `docs/architecture/ai-and-persistence-roadmap.md`.

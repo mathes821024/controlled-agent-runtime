@@ -34,3 +34,11 @@ HTTP/UI/DB/Redis/real payment/LLM/LangGraph/OAuth/JWT/HITL service/deploy.
 - OQ-09 Policy DSL: still open; evaluator is demo-hardcoded
 - OQ-10 refund_order_no: still open; uses structured in-memory identity tuple
 - OQ-11 ALREADY_REFUNDED final outcome: still open; normalize only, do not promote to success
+
+## Later roadmap pointer
+
+After Slice 1–2: see `docs/architecture/ai-and-persistence-roadmap.md`.
+
+Candidate next implementation slice: **G1 Slice 3 — Local Small LLM Proposal Layer**.
+
+G2 candidate persistence: **Local Docker PostgreSQL** (not frozen, not implemented).

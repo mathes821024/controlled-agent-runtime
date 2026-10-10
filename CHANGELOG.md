@@ -8,6 +8,9 @@ frozen.
 
 ### Added
 
+- Local-first AI + Local Docker data roadmap docs (planning only; no model/DB
+  implementation): `docs/architecture/ai-and-persistence-roadmap.md`, OQ-12…21.
+
 - G1 Slice 2 Human Acceptance UI runtime integration: local FastAPI bridge
   (`POST /api/demo/run`) serves the console and returns ReferenceRuntime results
   (branch `feat/g1-human-runtime-ui`; not merged).

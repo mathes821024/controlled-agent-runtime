@@ -184,19 +184,28 @@ Empty treatment inside a panel is a sentence: what did not happen, and where the
 
 No horizontal page scroll. Body text stays at least 16px. The viewport uses `min-height: 100dvh`.
 
-## Boundary for a later implementation
+## Implementation status (G1 Slice 2)
 
-Not in this prototype:
+The console is now wired through a local FastAPI bridge to `ReferenceRuntime`.
+Use `make demo` and open `http://127.0.0.1:8000`. Outcomes, reasons, adapter
+counts, and evidence come from the Runtime—not from canned UI success paths.
+See `docs/gates/g1-slice2-human-ui.md`.
 
-- Calling `ReferenceRuntime`
-- A local HTTP bridge
-- Any new policy rule, identity source, or approval
-- Real adapter, login, JWT/OAuth, database, Redis, LLM, LangGraph, or deployment
+Still out of scope for this UI surface:
 
-When implementation is separately approved, the UI stays a presentation surface. Scenario input goes in. The visible outcome, reason, adapter count, and evidence list come out of the runtime unchanged. The page must not fill unreached steps to make the timeline look complete.
+- Local / cloud LLM Proposal layer (candidate G1 Slice 3)
+- Local ASR / TTS
+- Database / Redis
+- Real adapter, login, JWT/OAuth, LangGraph, Langfuse, remote deploy
+
+Future text or voice inputs may feed a **Proposal only**. The UI must still
+render Runtime results unchanged and must not invent unreached evidence steps.
 
 ## How to preview
 
-Open `docs/ui/prototype/index.html` in a browser. No server and no install.
+```bash
+make demo
+```
 
-Switch the four scenarios and check that review, mismatch, and the authority attack stop where the tables above say they stop.
+Open `http://127.0.0.1:8000`. Opening the HTML file directly without the demo
+server will not call Runtime.

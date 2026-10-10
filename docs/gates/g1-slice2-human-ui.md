@@ -44,3 +44,17 @@ Frontend does not decide outcomes. Static scenario text is display metadata only
 | 需要人工审核 | `human_review` | refund-seed-02 |
 | 金额不一致 | `amount_mismatch` | refund-seed-03 |
 | 伪造身份 | `authority_attack` | seed-01 + forged `principal_id` |
+
+## Status
+
+Merged to `main` after Owner browser acceptance (2026-10-10).
+
+## Future data sources (not implemented here)
+
+Next candidate: Local Small LLM → Proposal → same Runtime / UI evidence path.
+
+Later: Local ASR / TTS; G2 Local Docker PostgreSQL for cases/evidence/idempotency.
+
+UI remains a presentation surface. LLM / DB must not bypass Runtime.
+
+See `docs/architecture/ai-and-persistence-roadmap.md`.

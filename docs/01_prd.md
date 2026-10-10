@@ -160,7 +160,7 @@ seed-02、seed-03 把“高于阈值”和“金额不一致”写成 `future_co
 - 业务码：`00` → `REFUND_SUCCEEDED`，`12` → `ALREADY_REFUNDED`，其他 → `REFUND_FAILED`。`ALREADY_REFUNDED` 最终运行时结果仍开放（OQ-11）
 - `refund_order_no` 的演示拼接是 `original_order_no + appid`，状态为 `OPEN_QUESTION`（OQ-10）
 - Demo Seeds：seed-01/02/03 均为 `future_conformance_expectation`（边界自动资格 / HITL / 金额不一致）
-- 开放问题 OQ-01 到 OQ-11（均保持 open；OQ-08/09/10/11 不在本草案关闭）
+- 开放问题 OQ-01 到 OQ-21（均保持 open；不得由实现偷偷关闭）
 - Gate 0 退出标准全部未勾选（须 Owner 决策，不能由 AI 代勾）
 
 以上已入库内容是 **候选契约**，不是 Owner 已宣布的 G0 Accepted / Frozen。
@@ -182,22 +182,27 @@ seed-02、seed-03 把“高于阈值”和“金额不一致”写成 `future_co
 
 | Gate | 候选结果 |
 |------|----------|
-| G1 | 内存中的参考求值器和轨迹引擎 |
-| G2 | 持久化与并发控制 |
+| G1 | 内存参考 Runtime（Slice 1）+ Human Acceptance UI（Slice 2）+ 候选 Slice 3：本地小模型 Proposal 层 |
+| G2 | 持久化与并发控制（**候选：Local Docker PostgreSQL reference persistence**；技术未冻结） |
 | G3 | 人工审核参考流程 |
 | G4 | 外部 Adapter 接口 |
 | G5 | 部署形态 |
 
-OQ-03 的安全默认是 G1 先做库、不做服务器。这仍是默认，不是决定。
+长期 AI 方向（规划，未实现）：优先本地小模型 → Proposal only；后续优先本地 ASR/TTS。详见 `docs/architecture/ai-and-persistence-roadmap.md`。
 
-### Missing
+原则：`LLM Intelligence ≠ Execution Authority`。Runtime 仍是 Source of Truth。
 
-- 运行时求值器
+OQ-03 的安全默认是 G1 先做库、不做服务器。本地 demo HTTP（Slice 2）不改变该产品默认，也不是部署授权。
+
+### Missing / deferred
+
+- 本地小模型 Proposal 层（规划中的 G1 Slice 3；OQ-12…14）
+- 本地 ASR / TTS（更后；OQ-18/19）
 - 人工审核的认证与实现（OQ-08）
-- 任何产品 UI
-- 持久化、幂等存储、真实 Adapter
-- 已冻结的策略条件语言
-- 已接受的 Gate 0 退出记录
+- 持久化（G2 候选 Docker PostgreSQL；OQ-15…17）；当前仍是内存
+- 真实 Adapter / 远程部署
+- 已冻结的策略条件语言（OQ-09）
+- LangGraph / Langfuse（非前置；OQ-20/21）
 
 ## 6. Core Business Rules
 
@@ -348,7 +353,8 @@ main 上已有三条符合性 Seed，并把金额单位写死。Gate 0 是否接
 - OQ-08 人工审核者如何认证（HITL 要求可冻结；认证实现延后）
 - OQ-09 哪一种确定性条件语言被批准。在此之前不选 CEL、JSONLogic、Rego 或嵌入表达式（defer G1）
 - OQ-10 演示退款单号如何避免拼接碰撞（defer G1 / idempotency design）
-- OQ-11 `ALREADY_REFUNDED` 如何映射为最终运行时结果（defer G1 normalization ADR）
+- OQ-11 `ALREADY_REFUNDED` 如何映射为最终运行时结果（defer normalization ADR）
+- OQ-12…OQ-21 本地 LLM / serving / structured output / PostgreSQL schema / evidence retention / idempotency persistence / ASR / TTS / LangGraph / Langfuse（见 `06-open-questions.md`；全部 open）
 
 ## 15. Owner Decisions Needed
 
