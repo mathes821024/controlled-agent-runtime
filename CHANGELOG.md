@@ -6,6 +6,12 @@ frozen.
 
 ## [Unreleased]
 
+### Changed
+
+- Gate 1 Slice 1 Review Fix 01: missing mock fixture fail-closed; layered
+  business-success proof; evidence order aligned with reserve; release failed
+  idempotency reservations; CNY currency fail-closed.
+
 ### Added
 
 - Gate 1 Slice 1: minimal in-memory reference runtime, mock adapter, evidence
