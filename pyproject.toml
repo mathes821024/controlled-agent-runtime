@@ -19,8 +19,16 @@ classifiers = [
 ]
 dependencies = []
 
+[project.optional-dependencies]
+demo = [
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.30",
+  "httpx>=0.27",
+]
+
 [project.scripts]
 controlled-agent-validate = "controlled_agent_runtime.validation:main"
+controlled-agent-demo = "controlled_agent_runtime.demo.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
