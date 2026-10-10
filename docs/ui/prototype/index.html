@@ -1,0 +1,984 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>受控执行控制台</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/ibm-plex-sans@5.2.5/latin-400.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/ibm-plex-sans@5.2.5/latin-500.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/ibm-plex-sans@5.2.5/latin-600.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/ibm-plex-mono@5.2.5/latin-400.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/ibm-plex-mono@5.2.5/latin-500.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css">
+  <style>
+    :root {
+      --ink: #172033;
+      --ink-soft: #3c4b5e;
+      --faint: #5c6b80;
+      --paper: #eef2f5;
+      --surface: #ffffff;
+      --line: #d5dee7;
+      --line-strong: #c3ced9;
+      --navy: #1c3f66;
+      --navy-wash: #e7eef5;
+      --shadow: 0 16px 40px rgba(23, 32, 51, 0.06);
+      --radius: 12px;
+      --radius-sm: 8px;
+      --sans: "IBM Plex Sans", "SF Pro Text", "PingFang SC", ui-sans-serif, sans-serif;
+      --mono: "IBM Plex Mono", "SF Mono", ui-monospace, monospace;
+      --executed: #0c5c48;
+      --executed-bg: #e5f4ee;
+      --executed-bar: #1f8a68;
+      --review: #6b3e0a;
+      --review-bg: #f8f1e3;
+      --review-bar: #c4843a;
+      --denied: #8f2424;
+      --denied-bg: #fdeeee;
+      --denied-bar: #c4514a;
+      --closed: #243140;
+      --closed-bg: #eef2f6;
+      --closed-bar: #5d6e82;
+    }
+    * { box-sizing: border-box; }
+    html { min-height: 100%; }
+    body {
+      margin: 0;
+      min-height: 100dvh;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: var(--sans);
+      font-size: 16px;
+      line-height: 1.5;
+    }
+    button, summary { font: inherit; color: inherit; }
+    button { cursor: pointer; touch-action: manipulation; }
+    :focus { outline: none; }
+    :focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
+    .skip {
+      position: absolute; left: 12px; top: -40px;
+      background: var(--ink); color: white; padding: 8px 12px;
+      border-radius: var(--radius-sm); z-index: 20;
+    }
+    .skip:focus { top: 12px; }
+    .shell { width: min(1180px, calc(100% - 32px)); margin: 0 auto; padding: 28px 0 64px; }
+    .masthead {
+      display: grid; grid-template-columns: minmax(200px, 280px) 1fr;
+      gap: 24px; align-items: end; margin-bottom: 16px;
+    }
+    .mark { display: flex; gap: 12px; align-items: center; }
+    .mark-seal {
+      width: 36px; height: 36px; border-radius: 10px; background: var(--ink);
+      color: #f4f7fa; display: grid; place-items: center; flex: none;
+    }
+    .product { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -0.02em; }
+    .product-sub { margin: 2px 0 0; color: var(--ink-soft); font-size: 13px; }
+    .thesis { margin: 0; justify-self: end; text-align: right; max-width: 36rem; }
+    .thesis-zh { margin: 0; font-size: 26px; line-height: 1.25; font-weight: 600; letter-spacing: -0.03em; }
+    .thesis-en { margin: 6px 0 0; color: var(--ink-soft); font-size: 14px; }
+    .notice {
+      margin: 0 0 14px; padding: 10px 14px; background: var(--navy-wash);
+      color: var(--navy); border-radius: var(--radius-sm);
+    }
+    .notice p { margin: 0; }
+    .notice .en { margin-top: 2px; }
+    .en { display: block; color: var(--faint); font-size: 12px; font-weight: 400; line-height: 1.35; }
+    .scenarios { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 12px; }
+    .scenario {
+      min-height: 76px; text-align: left; background: var(--surface);
+      border: 1px solid var(--line); border-radius: var(--radius-sm);
+      padding: 12px 14px; display: flex; flex-direction: column; gap: 2px;
+      transition: background-color 180ms cubic-bezier(0.16, 1, 0.3, 1), color 180ms cubic-bezier(0.16, 1, 0.3, 1), transform 120ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .scenario:active { transform: scale(0.98); }
+    .scenario[aria-checked="true"] { background: var(--ink); border-color: var(--ink); color: #f7f9fb; }
+    .scenario[aria-checked="true"] .en,
+    .scenario[aria-checked="true"] .scenario-hint { color: #d5dee8; }
+    .scenario-name { font-weight: 600; font-size: 15px; }
+    .scenario-hint { font-family: var(--mono); font-size: 12px; color: var(--ink-soft); }
+    .runbar {
+      display: flex; justify-content: space-between; align-items: center; gap: 16px;
+      background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+      padding: 14px 16px; margin-bottom: 12px;
+    }
+    .runbar p { margin: 0; }
+    .run {
+      flex: none; min-height: 48px; padding: 0 18px; border: 0; border-radius: 999px;
+      background: var(--navy); color: #f7f9fb; font-weight: 600;
+      display: inline-flex; flex-direction: column; align-items: flex-start; justify-content: center;
+    }
+    .run .en { color: #d5e2ef; }
+    .run:disabled { background: #8aa0b5; cursor: wait; }
+    .run:active:not(:disabled) { transform: scale(0.98); }
+    .stamp {
+      background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+      box-shadow: var(--shadow); display: grid; grid-template-columns: 6px 1fr auto;
+      overflow: hidden; margin-bottom: 12px; min-height: 168px;
+    }
+    .stamp-bar { background: var(--line-strong); }
+    .tone-executed .stamp-bar { background: var(--executed-bar); }
+    .tone-review .stamp-bar { background: var(--review-bar); }
+    .tone-denied .stamp-bar { background: var(--denied-bar); }
+    .tone-closed .stamp-bar { background: var(--closed-bar); }
+    .tone-idle .stamp-bar, .tone-running .stamp-bar { background: var(--navy); }
+    .stamp-body { padding: 22px 22px 18px; }
+    .stamp-kicker { margin: 0 0 6px; font-size: 13px; color: var(--ink-soft); }
+    .outcome { margin: 0; font-weight: 600; letter-spacing: -0.04em; line-height: 1.05; }
+    .outcome .zh { font-size: 40px; }
+    .outcome .en { margin-top: 6px; font-family: var(--mono); letter-spacing: 0.04em; }
+    .tone-executed .outcome { color: var(--executed); }
+    .tone-review .outcome { color: var(--review); }
+    .tone-denied .outcome { color: var(--denied); }
+    .tone-closed .outcome { color: var(--closed); }
+    .tone-executed .outcome .en { color: var(--executed); }
+    .tone-review .outcome .en { color: var(--review); }
+    .tone-denied .outcome .en { color: var(--denied); }
+    .tone-closed .outcome .en { color: var(--closed); }
+    .why { margin: 14px 0 0; max-width: 62ch; }
+    .why .en { margin-top: 4px; }
+    .metrics { margin: 0; padding: 22px 22px 18px 0; display: grid; align-content: center; gap: 10px; min-width: 210px; }
+    .metrics div { display: grid; gap: 2px; }
+    .metrics dt { font-size: 13px; }
+    .metrics dd { margin: 0; font-family: var(--mono); font-size: 14px; font-weight: 500; overflow-wrap: break-word; }
+    .path {
+      list-style: none; display: flex; gap: 0; margin: 0 0 12px; padding: 16px 8px 14px;
+      background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    }
+    .station {
+      flex: 1; padding: 0 8px; display: flex; flex-direction: column; align-items: center;
+      text-align: center; position: relative; background: transparent; border: 0;
+    }
+    .station::before {
+      content: ""; position: absolute; top: 5px; right: 50%; left: -50%; height: 2px; background: #c5d0db;
+    }
+    .station:first-child::before { display: none; }
+    .station.is-idle::before { background: transparent; border-top: 1px dashed var(--line-strong); height: 0; }
+    .dot {
+      width: 13px; height: 13px; border-radius: 50%; border: 2px solid var(--line-strong);
+      background: var(--surface); position: relative; z-index: 1; margin-bottom: 8px;
+    }
+    .station.is-done .dot { background: var(--navy); border-color: var(--navy); }
+    .station.is-live .dot { background: var(--surface); border-color: var(--navy); box-shadow: 0 0 0 4px var(--navy-wash); }
+    .station.is-stop .dot { background: var(--navy); border-color: var(--navy); box-shadow: 0 0 0 4px var(--navy-wash); }
+    .station.is-rejected .dot { background: var(--denied); border-color: var(--denied); box-shadow: 0 0 0 4px var(--denied-bg); }
+    .path.tone-review .station.is-stop .dot { background: var(--review-bar); border-color: var(--review-bar); box-shadow: 0 0 0 4px var(--review-bg); }
+    .path.tone-denied .station.is-stop .dot { background: var(--denied-bar); border-color: var(--denied-bar); box-shadow: 0 0 0 4px var(--denied-bg); }
+    .station-name { font-size: 14px; font-weight: 600; }
+    .station.is-idle .station-name { color: var(--faint); font-weight: 500; }
+    .station-state { min-height: 1.15em; font-size: 12px; font-weight: 600; color: var(--ink-soft); }
+    .station.is-rejected .station-state { color: var(--denied); }
+    .station.is-idle .station-state { color: var(--faint); font-weight: 500; }
+    .columns { display: grid; grid-template-columns: 1fr 1.15fr 0.95fr; gap: 12px; margin-bottom: 12px; align-items: start; }
+    .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 16px 8px; min-width: 0; transition: box-shadow 200ms cubic-bezier(0.16, 1, 0.3, 1); }
+    .panel.is-linked { box-shadow: 0 0 0 2px var(--navy); }
+    .panel-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 8px; }
+    .panel h2 { margin: 0; font-size: 16px; font-weight: 600; }
+    .tag { font-size: 12px; font-weight: 600; color: var(--navy); background: var(--navy-wash); border-radius: 999px; padding: 4px 8px; white-space: nowrap; }
+    .tag .en { color: var(--navy); }
+    .tag.danger { color: var(--denied); background: var(--denied-bg); }
+    .tag.danger .en { color: var(--denied); }
+    .group + .group { border-top: 1px solid var(--line); margin-top: 8px; padding-top: 8px; }
+    .group h3 { margin: 8px 0 4px; font-size: 14px; font-weight: 600; }
+    .facts { margin: 0; }
+    .fact { display: grid; grid-template-columns: 9.5rem minmax(0, 1fr); gap: 10px; padding: 7px 0; border-bottom: 1px solid #edf1f5; align-items: baseline; }
+    .fact:last-child { border-bottom: 0; }
+    .fact dt { color: var(--ink-soft); font-size: 14px; }
+    .fact dd { margin: 0; font-family: var(--mono); font-size: 13px; line-height: 1.4; text-align: right; overflow-wrap: break-word; }
+    .fact.is-stack { grid-template-columns: 1fr; gap: 2px; }
+    .fact.is-stack dd { text-align: left; }
+    .fact.is-rejected dd { color: var(--denied); }
+    .note { margin: 8px 0 12px; color: var(--ink-soft); font-size: 14px; }
+    .note .en { margin-top: 2px; }
+    .waiting { margin: 8px 0 16px; padding: 16px; border: 1px dashed var(--line-strong); border-radius: var(--radius-sm); color: var(--ink-soft); }
+    .compare { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: stretch; margin: 8px 0 12px; }
+    .amount { background: var(--paper); border-radius: var(--radius-sm); padding: 10px 12px; }
+    .amount strong { display: block; margin-top: 4px; font-family: var(--mono); font-size: 18px; font-weight: 500; }
+    .relation { align-self: center; font-size: 13px; font-weight: 600; color: var(--ink-soft); text-align: center; max-width: 7.5rem; }
+    .timeline-wrap { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 16px 12px; }
+    .timeline-wrap h2 { margin: 0; font-size: 16px; }
+    .timeline-lead { margin: 4px 0 12px; color: var(--ink-soft); font-size: 14px; }
+    .timeline { list-style: none; margin: 0; padding: 0; }
+    .event { min-height: 52px; }
+    .event-hit {
+      display: grid; grid-template-columns: 28px 16px minmax(0, 1fr); gap: 10px;
+      width: 100%; cursor: pointer; text-align: left; background: transparent; border: 0; padding: 0;
+    }
+    .event.is-current .event-copy { background: var(--navy-wash); border-radius: 8px; }
+    .event-index { font-family: var(--mono); font-size: 12px; color: var(--faint); padding-top: 8px; text-align: right; }
+    .rail { position: relative; }
+    .rail::before { content: ""; position: absolute; left: 5px; top: 8px; bottom: -8px; width: 1px; background: var(--line-strong); }
+    .event:last-child .rail::before { bottom: auto; height: 8px; }
+    .node { width: 11px; height: 11px; margin-top: 10px; border-radius: 50%; background: var(--navy); position: relative; z-index: 1; }
+    .event.is-stop .node { box-shadow: 0 0 0 4px var(--navy-wash); }
+    .tone-executed .event.is-stop .node { background: var(--executed-bar); box-shadow: 0 0 0 4px var(--executed-bg); }
+    .tone-review .event.is-stop .node { background: var(--review-bar); box-shadow: 0 0 0 4px var(--review-bg); }
+    .tone-denied .event.is-stop .node { background: var(--denied-bar); box-shadow: 0 0 0 4px var(--denied-bg); }
+    .tone-closed .event.is-stop .node { background: var(--closed-bar); box-shadow: 0 0 0 4px var(--closed-bg); }
+    .event-copy { padding: 4px 8px 8px; }
+    .event-name { margin: 0; font-family: var(--mono); font-size: 13px; font-weight: 500; overflow-wrap: break-word; }
+    .event-gloss { margin: 2px 0 0; font-size: 14px; }
+    .absent { margin: 8px 0; padding-top: 10px; border-top: 1px solid var(--line); color: var(--ink-soft); font-size: 14px; overflow-wrap: break-word; }
+    .technical { margin-top: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 0 16px; }
+    .technical summary { cursor: pointer; min-height: 48px; display: flex; align-items: center; font-weight: 600; }
+    .foot { margin: 18px 0 0; color: var(--faint); font-size: 13px; }
+    .is-fresh .event { animation: settle 360ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+    @keyframes settle { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    @media (prefers-reduced-motion: reduce) {
+      .scenario, .run, .panel, .is-fresh .event { animation: none; transition: none; }
+    }
+    @media (max-width: 1079px) {
+      .columns { grid-template-columns: 1fr 1fr; }
+      .panel-proposal { grid-column: 1 / -1; }
+      .stamp { grid-template-columns: 6px 1fr; }
+      .metrics { grid-column: 2; grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 0 22px 18px; min-width: 0; }
+    }
+    @media (max-width: 759px) {
+      .shell { width: min(100% - 24px, 1180px); padding-top: 16px; }
+      .masthead, .runbar { grid-template-columns: 1fr; display: grid; }
+      .thesis { justify-self: start; text-align: left; }
+      .thesis-zh { font-size: 22px; }
+      .scenarios { grid-template-columns: 1fr 1fr; }
+      .run { width: 100%; align-items: center; }
+      .outcome .zh { font-size: 32px; }
+      .metrics { grid-template-columns: 1fr; }
+      .path { flex-direction: column; padding: 8px 12px; }
+      .station { display: grid; grid-template-columns: 20px 1fr; text-align: left; column-gap: 10px; padding: 8px 0; }
+      .station .dot { grid-row: 1 / span 3; margin: 4px 0 0; }
+      .station::before { left: 6px; top: -8px; right: auto; width: 1px; height: 16px; }
+      .columns, .compare, .fact { grid-template-columns: 1fr; }
+      .panel-proposal { grid-column: auto; }
+      .fact dd, .relation { text-align: left; max-width: none; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#verdict">跳到结论</a>
+  <div class="shell">
+    <header class="masthead">
+      <div class="mark">
+        <div class="mark-seal" aria-hidden="true"><i class="ph ph-shield-check"></i></div>
+        <div>
+          <p class="product">受控执行控制台</p>
+          <p class="product-sub">Control Room</p>
+        </div>
+      </div>
+      <div class="thesis">
+        <p class="thesis-zh">模型只能提案。<br>运行时才决定能否执行。</p>
+        <p class="thesis-en" lang="en">The model proposes. The runtime decides.</p>
+      </div>
+    </header>
+    <div class="notice">
+      <p>先选一个场景，再按「运行」。步骤会按真实顺序出现，没发生的步骤不会被补上。</p>
+      <p class="en" lang="en">Pick a case, then press Run. Steps appear in the real order. Missing steps are not invented.</p>
+    </div>
+    <div class="scenarios" id="scenarios" role="radiogroup" aria-label="选择要运行的场景"></div>
+    <div class="runbar">
+      <p>
+        <span id="run-help">选定提案之后，按右边的按钮。换场景会回到未运行。</span>
+        <span class="en" lang="en">Press Run after you choose. Switching cases clears the result.</span>
+      </p>
+      <button class="run" id="run" type="button">
+        <span>运行这次提案</span>
+        <span class="en" lang="en">Run this proposal</span>
+      </button>
+    </div>
+    <section class="stamp" id="verdict" aria-live="polite"></section>
+    <ol class="path" id="path" aria-label="控制路径"></ol>
+    <div class="columns">
+      <section class="panel panel-proposal" id="proposal"></section>
+      <section class="panel" id="judgment"></section>
+      <section class="panel" id="execution"></section>
+    </div>
+    <section class="timeline-wrap" id="evidence"></section>
+    <details class="technical" id="technical">
+      <summary>技术记录 <span class="en" lang="en">Technical record</span></summary>
+      <div id="technical-body"></div>
+    </details>
+    <p class="foot">合成数据。真实适配器关闭。数字键 1 到 4 选择场景，回车键运行。</p>
+  </div>
+  <script>
+    function step(name, station, zh, en, extra) {
+      return Object.assign({ name: name, station: station, zh: zh, en: en }, extra || {});
+    }
+
+    var SCENARIOS = [
+      {
+        id: "safe",
+        zh: "安全自动通过",
+        en: "Safe auto path",
+        hint: "100.00 元",
+        tone: "executed",
+        outcomeZh: "已执行",
+        outcomeEn: "EXECUTED",
+        outcomeCode: "executed",
+        whyZh: "申请金额和权威金额一致，正好在 100 元边界上。守卫通过后，模拟适配器被调用了一次。",
+        whyEn: "The amounts match and sit on the 100 CNY boundary. Guards passed, and the mock adapter was called once.",
+        reason: "mock_business_success",
+        rule: "R-05",
+        decision: "allow_execution",
+        seed: "refund-seed-01.json",
+        stopStation: "",
+        proposalNoteZh: "这些是提案。它们不能授予权限。",
+        proposalNoteEn: "These fields are the proposal. They do not grant authority.",
+        proposal: [
+          ["意图", "Intent", "refund"],
+          ["业务应用号", "App id", "app_demo_001"],
+          ["终端", "Terminal", "term_demo_001"],
+          ["订单", "Order", "order_demo_001"],
+          ["交易日期", "Transaction date", "2026-09-01"],
+          ["申请金额", "Requested amount", "100.00 元"],
+          ["最小单位", "Minor units", "10000"],
+          ["商户邮箱", "Merchant email", "merchant-seed01@example.invalid"]
+        ],
+        authority: [
+          ["主体", "Principal", "principal_demo_001"],
+          ["租户", "Tenant", "tenant_demo_001"],
+          ["应用身份", "Application id", "app_demo_001"],
+          ["资源", "Resource", "txn_demo_001"],
+          ["来源", "Source", "transaction_query_tool"],
+          ["原始金额", "Original amount", "100.00 元"],
+          ["货币", "Currency", "CNY"]
+        ],
+        authorityNoteZh: "身份和原始金额来自可信上下文和交易记录，不来自模型。application_id 是身份，appid 只是业务定位号。",
+        authorityNoteEn: "Identity and the original amount come from trusted context, not from the model.",
+        policyTitleZh: "R-05，允许进入守卫",
+        policyTitleEn: "R-05, eligible for guards",
+        policyNoteZh: "允许执行只表示可以进入守卫，本身还不是执行。",
+        policyNoteEn: "Allow execution means the proposal may enter the guards. It is not itself an execution.",
+        compare: ["提案", "Proposal", "100.00 元", "权威金额", "Authority", "100.00 元", "相等，正在边界上", "Equal, at boundary"],
+        execution: [
+          ["调用次数", "Adapter calls", "1"],
+          ["适配器", "Adapter", "模拟退款适配器"],
+          ["真实适配器", "Real adapter", "关闭"],
+          ["响应码", "respCode", "00"],
+          ["业务结果", "Business result", "REFUND_SUCCEEDED"],
+          ["幂等", "Idempotency", "已占用，并完成"]
+        ],
+        executionNoteZh: "传输成功不够。这次同时有协议、结构和业务成功。",
+        executionNoteEn: "Transport success is not enough. Protocol, schema, and business also succeeded.",
+        evidenceLeadZh: "按真实顺序记录了 10 步。点一条记录，会标出它对应的栏目。",
+        evidenceLeadEn: "Ten events, in order. Select a row to mark its panel.",
+        absentZh: "",
+        absentEn: "",
+        evidence: [
+          step("proposal_received", "proposal", "提案已收下，准备校验。", "Proposal accepted for validation."),
+          step("proposal_validated", "proposal", "提案字段允许使用。", "Proposal fields are allowed."),
+          step("trusted_context_bound", "authority", "已绑定经过认证的身份。", "Authenticated context bound."),
+          step("authoritative_facts_loaded", "authority", "已从交易记录装入 txn_demo_001。", "Loaded txn_demo_001 from the transaction record."),
+          step("policy_decided", "policy", "允许进入守卫。规则 R-05。", "allow_execution, eligible_for_guards, R-05."),
+          step("state_revalidated", "guard", "执行前再次确认，守卫仍然成立。", "Guards still hold before any side effect."),
+          step("idempotency_reserved", "guard", "已在内存中占用幂等。", "In-memory reservation placed."),
+          step("mock_adapter_called", "adapter", "模拟适配器返回响应码 00。", "Mock adapter returned respCode 00."),
+          step("result_normalized", "adapter", "业务结果是退款成功。", "REFUND_SUCCEEDED, mock_business_success."),
+          step("trace_completed", "adapter", "证据到此结束。", "Trace closed after business success.")
+        ]
+      },
+      {
+        id: "review",
+        zh: "需要人工审核",
+        en: "Human review",
+        hint: "100.01 元",
+        tone: "review",
+        outcomeZh: "需要人工审核",
+        outcomeEn: "NEEDS REVIEW",
+        outcomeCode: "needs_review",
+        whyZh: "权威金额高于 100 元自动处理边界。没有调用适配器，也没有伪造人工批准。",
+        whyEn: "Refund amount is above the 100 CNY automatic-action threshold. No adapter was called.",
+        reason: "demo_amount_threshold",
+        rule: "R-04",
+        decision: "needs_review",
+        seed: "refund-seed-02.json",
+        stopStation: "policy",
+        proposalNoteZh: "申请金额和记录一致。一致不等于可以执行。",
+        proposalNoteEn: "The proposal amount matches the record. Matching is not permission to execute.",
+        proposal: [
+          ["意图", "Intent", "refund"],
+          ["业务应用号", "App id", "app_demo_001"],
+          ["终端", "Terminal", "term_demo_002"],
+          ["订单", "Order", "order_demo_002"],
+          ["交易日期", "Transaction date", "2026-09-01"],
+          ["申请金额", "Requested amount", "100.01 元"],
+          ["最小单位", "Minor units", "10001"],
+          ["商户邮箱", "Merchant email", "merchant-seed02@example.invalid"]
+        ],
+        authority: [
+          ["主体", "Principal", "principal_demo_002"],
+          ["租户", "Tenant", "tenant_demo_001"],
+          ["应用身份", "Application id", "app_demo_001"],
+          ["资源", "Resource", "txn_demo_002"],
+          ["来源", "Source", "transaction_query_tool"],
+          ["原始金额", "Original amount", "100.01 元"],
+          ["货币", "Currency", "CNY"]
+        ],
+        authorityNoteZh: "阈值看的是权威金额：10001 分，也就是 100.01 元。",
+        authorityNoteEn: "The threshold uses the authoritative amount, 10001 minor units.",
+        policyTitleZh: "R-04，金额超过自动边界",
+        policyTitleEn: "R-04, demo amount threshold",
+        policyNoteZh: "高于 100.00 元时，必须等人来处理。运行时不会自己补一个批准。",
+        policyNoteEn: "Above 100.00 CNY, a person is required. The runtime does not invent an approval.",
+        compare: ["权威金额", "Authoritative", "100.01 元", "自动边界", "Threshold", "100.00 元", "高于边界", "Above threshold"],
+        execution: [
+          ["调用次数", "Adapter calls", "0"],
+          ["适配器", "Adapter", "未调用"],
+          ["真实适配器", "Real adapter", "关闭"],
+          ["响应码", "respCode", "无"],
+          ["业务结果", "Business result", "无"],
+          ["幂等", "Idempotency", "未占用"]
+        ],
+        executionNoteZh: "执行守卫没有走到。策略已经让这次运行停下来。",
+        executionNoteEn: "Execution guards were not reached. Policy already stopped the run.",
+        evidenceLeadZh: "证据停在策略决定。后面的步骤没有被补上。",
+        evidenceLeadEn: "The trace stops at the policy decision. Later steps were not invented.",
+        absentZh: "没有记录：state_revalidated、idempotency_reserved、mock_adapter_called、result_normalized。",
+        absentEn: "Not recorded: state_revalidated, idempotency_reserved, mock_adapter_called, result_normalized.",
+        evidence: [
+          step("proposal_received", "proposal", "提案已收下，准备校验。", "Proposal accepted for validation."),
+          step("proposal_validated", "proposal", "提案字段允许使用。", "Proposal fields are allowed."),
+          step("trusted_context_bound", "authority", "已绑定经过认证的身份。", "Authenticated context bound."),
+          step("authoritative_facts_loaded", "authority", "已从交易记录装入 txn_demo_002。", "Loaded txn_demo_002 from the transaction record."),
+          step("policy_decided", "policy", "需要人工审核。规则 R-04。", "needs_review, demo_amount_threshold, R-04."),
+          step("trace_completed", "policy", "证据到此结束。原因是超过金额边界。", "Trace closed. Reason: demo_amount_threshold.")
+        ]
+      },
+      {
+        id: "mismatch",
+        zh: "金额不一致",
+        en: "Amount mismatch",
+        hint: "80 元对 100 元",
+        tone: "denied",
+        outcomeZh: "已拒绝",
+        outcomeEn: "DENIED",
+        outcomeCode: "denied",
+        whyZh: "提案要退 80.00 元，权威记录是 100.00 元。样例只允许全额退款。没有调用适配器。",
+        whyEn: "The proposal asks for 80.00 CNY. The authoritative record is 100.00 CNY. Full refund only. No adapter was called.",
+        reason: "full_refund_only",
+        rule: "R-03",
+        decision: "deny",
+        seed: "refund-seed-03.json",
+        stopStation: "policy",
+        proposalNoteZh: "申请金额只用来和记录对照，它不会变成实际退款金额。",
+        proposalNoteEn: "The requested amount is compared with the record. It is never the amount that would be refunded.",
+        proposal: [
+          ["意图", "Intent", "refund"],
+          ["业务应用号", "App id", "app_demo_001"],
+          ["终端", "Terminal", "term_demo_003"],
+          ["订单", "Order", "order_demo_003"],
+          ["交易日期", "Transaction date", "2026-09-01"],
+          ["申请金额", "Requested amount", "80.00 元"],
+          ["最小单位", "Minor units", "8000"],
+          ["商户邮箱", "Merchant email", "merchant-seed03@example.invalid"]
+        ],
+        authority: [
+          ["主体", "Principal", "principal_demo_003"],
+          ["租户", "Tenant", "tenant_demo_001"],
+          ["应用身份", "Application id", "app_demo_001"],
+          ["资源", "Resource", "txn_demo_003"],
+          ["来源", "Source", "transaction_query_tool"],
+          ["原始金额", "Original amount", "100.00 元"],
+          ["货币", "Currency", "CNY"]
+        ],
+        authorityNoteZh: "交易记录里的原始金额是 100.00 元。",
+        authorityNoteEn: "The transaction record says the original amount is 100.00 CNY.",
+        policyTitleZh: "R-03，只允许全额退款",
+        policyTitleEn: "R-03, full refund only",
+        policyNoteZh: "金额对不上，在守卫和适配器之前就被拒绝。",
+        policyNoteEn: "A partial amount is denied before any guard or adapter.",
+        compare: ["提案", "Proposal", "80.00 元", "权威金额", "Authority", "100.00 元", "不相等", "Not equal"],
+        execution: [
+          ["调用次数", "Adapter calls", "0"],
+          ["适配器", "Adapter", "未调用"],
+          ["真实适配器", "Real adapter", "关闭"],
+          ["响应码", "respCode", "无"],
+          ["业务结果", "Business result", "无"],
+          ["幂等", "Idempotency", "未占用"]
+        ],
+        executionNoteZh: "执行守卫没有走到。策略已经拒绝了这次运行。",
+        executionNoteEn: "Execution guards were not reached. Policy already denied the run.",
+        evidenceLeadZh: "证据停在策略决定。后面的步骤没有被补上。",
+        evidenceLeadEn: "The trace stops at the policy decision. Later steps were not invented.",
+        absentZh: "没有记录：state_revalidated、idempotency_reserved、mock_adapter_called、result_normalized。",
+        absentEn: "Not recorded: state_revalidated, idempotency_reserved, mock_adapter_called, result_normalized.",
+        evidence: [
+          step("proposal_received", "proposal", "提案已收下，准备校验。", "Proposal accepted for validation."),
+          step("proposal_validated", "proposal", "提案字段允许使用。", "Proposal fields are allowed."),
+          step("trusted_context_bound", "authority", "已绑定经过认证的身份。", "Authenticated context bound."),
+          step("authoritative_facts_loaded", "authority", "已从交易记录装入 txn_demo_003。", "Loaded txn_demo_003 from the transaction record."),
+          step("policy_decided", "policy", "拒绝。只允许全额退款。规则 R-03。", "deny, full_refund_only, R-03."),
+          step("trace_completed", "policy", "证据到此结束。原因是金额不一致。", "Trace closed. Reason: full_refund_only.")
+        ]
+      },
+      {
+        id: "attack",
+        zh: "伪造身份",
+        en: "Authority attack",
+        hint: "伪造 principal_id",
+        tone: "closed",
+        outcomeZh: "已安全停止",
+        outcomeEn: "FAILED CLOSED",
+        outcomeCode: "failed_closed",
+        whyZh: "提案试图写入 principal_id。身份不属于提案。运行时在校验阶段停止，没有绑定权威身份。",
+        whyEn: "The proposal tried to supply principal_id. Identity is trusted context, not a model field. Validation stopped the run.",
+        reason: "proposal_contains_protected_fields:principal_id",
+        rule: "无",
+        decision: "无",
+        seed: "seed-01 加上 proposal.principal_id = forged",
+        stopStation: "proposal",
+        proposalNoteZh: "多出来的字段显示在这里，是为了让你看见它被拒绝了。它没有被接受。",
+        proposalNoteEn: "The extra field is shown so you can see the rejection. It was not accepted.",
+        proposal: [
+          ["意图", "Intent", "refund"],
+          ["业务应用号", "App id", "app_demo_001"],
+          ["终端", "Terminal", "term_demo_001"],
+          ["订单", "Order", "order_demo_001"],
+          ["交易日期", "Transaction date", "2026-09-01"],
+          ["申请金额", "Requested amount", "100.00 元"],
+          ["最小单位", "Minor units", "10000"]
+        ],
+        rejected: ["principal_id", "Principal id", "forged，受保护字段"],
+        authority: [],
+        authorityNoteZh: "可信身份没有绑定。主体、租户和应用身份都没有被读取。",
+        authorityNoteEn: "Trusted context was not bound. Principal, tenant, and application id were not read.",
+        policyTitleZh: "策略没有执行",
+        policyTitleEn: "Policy was not evaluated",
+        policyNoteZh: "没有规则生效。因为校验已经安全停止，所以不存在允许、审核或拒绝的策略结果。",
+        policyNoteEn: "No rule fired. Validation already failed closed.",
+        compare: null,
+        execution: [
+          ["调用次数", "Adapter calls", "0"],
+          ["适配器", "Adapter", "未调用"],
+          ["真实适配器", "Real adapter", "关闭"],
+          ["响应码", "respCode", "无"],
+          ["业务结果", "Business result", "无"],
+          ["幂等", "Idempotency", "未占用"]
+        ],
+        executionNoteZh: "执行没有走到。运行时停在提案校验。",
+        executionNoteEn: "Execution was not reached. The runtime stopped at proposal validation.",
+        evidenceLeadZh: "只记录了 3 步。没有进入权威身份，也没有进入策略。",
+        evidenceLeadEn: "Three events. The run did not continue into authority or policy.",
+        absentZh: "没有记录：trusted_context_bound、authoritative_facts_loaded、policy_decided、state_revalidated、idempotency_reserved、mock_adapter_called、result_normalized。",
+        absentEn: "Not recorded: trusted_context_bound, authoritative_facts_loaded, policy_decided, and the execution events.",
+        evidence: [
+          step("proposal_received", "proposal", "提案已收下，准备校验。", "Proposal accepted for validation."),
+          step("proposal_validated", "proposal", "安全停止。提案包含受保护字段 principal_id。", "fail_closed, proposal_contains_protected_fields:principal_id.", { reject: true }),
+          step("trace_completed", "proposal", "证据到此结束。这一步的原因是 fail_closed。", "Trace closed. Reason on this event: fail_closed.")
+        ]
+      }
+    ];
+
+    var STATIONS = [
+      ["proposal", "提案", "Proposal"],
+      ["authority", "权威", "Authority"],
+      ["policy", "策略", "Policy"],
+      ["guard", "守卫", "Guard"],
+      ["adapter", "适配器", "Adapter"]
+    ];
+
+    var switchEl = document.getElementById("scenarios");
+    var runBtn = document.getElementById("run");
+    var verdictEl = document.getElementById("verdict");
+    var pathEl = document.getElementById("path");
+    var proposalEl = document.getElementById("proposal");
+    var judgmentEl = document.getElementById("judgment");
+    var executionEl = document.getElementById("execution");
+    var evidenceEl = document.getElementById("evidence");
+    var technicalEl = document.getElementById("technical-body");
+    var current = 0;
+    var phase = "idle";
+    var shown = 0;
+    var generation = 0;
+    var timers = [];
+
+    function el(tag, className, text) {
+      var node = document.createElement(tag);
+      if (className) node.className = className;
+      if (text != null) {
+        node.textContent = String(text).replace(/[A-Za-z0-9_:]{28,}/g, function (token) {
+          return token.replace(/[_:]/g, "$&\u200b");
+        });
+      }
+      return node;
+    }
+
+    function bi(zh, en, className) {
+      var wrap = document.createElement("span");
+      if (className) wrap.className = className;
+      var z = el("span", "zh", zh);
+      var e = el("span", "en", en);
+      e.lang = "en";
+      wrap.append(z, e);
+      return wrap;
+    }
+
+    function pair(zh, en) {
+      var block = document.createElement("div");
+      block.append(el("span", null, zh), el("span", "en", en));
+      block.querySelector(".en").lang = "en";
+      return block;
+    }
+
+    function facts(pairs, rejected) {
+      var list = el("dl", "facts");
+      pairs.forEach(function (item) {
+        var long = String(item[2]).length > 28;
+        var row = el("div", long ? "fact is-stack" : "fact");
+        row.append(el("dt", null, ""), el("dd", null, item[2]));
+        row.querySelector("dt").replaceChildren(pair(item[0], item[1]));
+        list.append(row);
+      });
+      if (rejected) {
+        var row = el("div", "fact is-stack is-rejected");
+        row.append(el("dt", null, ""), el("dd", null, rejected[2]));
+        row.querySelector("dt").replaceChildren(pair(rejected[0], rejected[1]));
+        list.append(row);
+      }
+      return list;
+    }
+
+    function note(zh, en) {
+      var p = el("p", "note");
+      p.append(el("span", null, zh), el("span", "en", en));
+      p.querySelector(".en").lang = "en";
+      return p;
+    }
+
+    function waiting(zh, en) {
+      var box = el("div", "waiting");
+      box.append(el("span", null, zh), el("span", "en", en));
+      box.querySelector(".en").lang = "en";
+      return box;
+    }
+
+    function scenario() { return SCENARIOS[current]; }
+    function visible() { return scenario().evidence.slice(0, shown); }
+    function hasEvent(name) { return visible().some(function (item) { return item.name === name; }); }
+    function reduceMotion() { return window.matchMedia("(prefers-reduced-motion: reduce)").matches; }
+
+    function clearTimers() {
+      timers.forEach(clearTimeout);
+      timers = [];
+    }
+
+    function stationKind(id) {
+      var s = scenario();
+      var events = visible().filter(function (item) { return item.station === id; });
+      var order = STATIONS.findIndex(function (item) { return item[0] === id; });
+      var stopOrder = STATIONS.findIndex(function (item) { return item[0] === s.stopStation; });
+      var traceDone = hasEvent("trace_completed");
+      if (events.length === 0) {
+        var stoppedEarlier = traceDone && ((s.stopStation && stopOrder > -1 && stopOrder < order) || visible().some(function (item) { return item.reject; }));
+        return stoppedEarlier ? "idle" : "pending";
+      }
+      if (events.some(function (item) { return item.reject; })) return traceDone ? "rejected" : "live";
+      var last = visible()[visible().length - 1];
+      if (phase === "running" && last.station === id && last.name !== "trace_completed") return "live";
+      if (s.stopStation === id && traceDone) return "stop";
+      return "done";
+    }
+
+    function stationLabel(kind) {
+      if (kind === "done") return ["已通过", "Reached"];
+      if (kind === "live") return ["进行中", "In progress"];
+      if (kind === "stop") return ["停在这里", "Stopped here"];
+      if (kind === "rejected") return ["已拒绝", "Rejected"];
+      if (kind === "pending") return phase === "idle" ? ["等待运行", "Waiting"] : ["等待", "Waiting"];
+      return ["未到达", "Not reached"];
+    }
+
+    function finished() { return phase === "done"; }
+    function revealAuthority() { return hasEvent("trusted_context_bound") || (finished() && scenario().stopStation === "proposal"); }
+    function revealPolicy() { return hasEvent("policy_decided") || (finished() && !hasEvent("policy_decided")); }
+    function revealExecution() {
+      return hasEvent("state_revalidated") || hasEvent("mock_adapter_called") || finished();
+    }
+
+    function renderSwitch() {
+      switchEl.replaceChildren();
+      SCENARIOS.forEach(function (item, index) {
+        var button = el("button", "scenario");
+        button.type = "button";
+        button.role = "radio";
+        button.id = "scenario-" + item.id;
+        button.setAttribute("aria-checked", index === current ? "true" : "false");
+        button.tabIndex = index === current ? 0 : -1;
+        button.append(bi(item.zh, item.en), el("span", "scenario-hint", item.hint));
+        button.addEventListener("click", function () { select(index, false); });
+        button.addEventListener("keydown", onScenarioKey);
+        switchEl.append(button);
+      });
+    }
+
+    function renderRun() {
+      var label = phase === "running" ? "正在运行" : (phase === "done" ? "再运行一次" : "运行这次提案");
+      var sub = phase === "running" ? "Running" : (phase === "done" ? "Run again" : "Run this proposal");
+      runBtn.disabled = phase === "running";
+      runBtn.replaceChildren(el("span", null, label), el("span", "en", sub));
+      runBtn.querySelector(".en").lang = "en";
+    }
+
+    function renderVerdict() {
+      var s = scenario();
+      var tone = phase === "done" ? s.tone : (phase === "running" ? "running" : "idle");
+      verdictEl.className = "stamp tone-" + tone;
+      var titleZh = "尚未运行";
+      var titleEn = "Not run yet";
+      var whyZh = "结论会在运行结束时出现。运行过程中，你能看到它走到哪一步。";
+      var whyEn = "The outcome appears when the run finishes. While it runs, you can see the step it has reached.";
+      var calls = "尚未发生";
+      var reason = "尚未发生";
+      var rule = "尚未发生";
+      if (phase === "running") {
+        var last = visible()[visible().length - 1];
+        titleZh = "正在判断";
+        titleEn = "Running";
+        whyZh = last ? ("第 " + shown + " 步：" + last.zh) : "正在开始。";
+        whyEn = last ? last.en : "Starting.";
+      }
+      if (phase === "done") {
+        titleZh = s.outcomeZh;
+        titleEn = s.outcomeEn;
+        whyZh = s.whyZh;
+        whyEn = s.whyEn;
+        calls = s.execution[0][2];
+        reason = s.reason;
+        rule = s.rule;
+      }
+      var bar = el("div", "stamp-bar");
+      bar.setAttribute("aria-hidden", "true");
+      var body = el("div", "stamp-body");
+      var kicker = el("p", "stamp-kicker");
+      kicker.append(el("span", null, "运行结论"), el("span", "en", "Runtime outcome"));
+      kicker.querySelector(".en").lang = "en";
+      var heading = el("h1", "outcome");
+      heading.append(el("span", "zh", titleZh), el("span", "en", titleEn));
+      heading.querySelector(".en").lang = "en";
+      var why = el("p", "why");
+      why.append(el("span", null, whyZh), el("span", "en", whyEn));
+      why.querySelector(".en").lang = "en";
+      body.append(kicker, heading, why);
+      var metrics = el("dl", "metrics");
+      [["适配器调用", "Adapter calls", calls], ["原因", "Reason", reason], ["规则", "Rule", rule]].forEach(function (item) {
+        var wrap = el("div");
+        var dt = el("dt");
+        dt.append(el("span", null, item[0]), el("span", "en", item[1]));
+        dt.querySelector(".en").lang = "en";
+        wrap.append(dt, el("dd", null, item[2]));
+        metrics.append(wrap);
+      });
+      verdictEl.replaceChildren(bar, body, metrics);
+    }
+
+    function renderPath() {
+      var s = scenario();
+      pathEl.className = "path" + (phase === "done" ? " tone-" + s.tone : "");
+      pathEl.replaceChildren();
+      STATIONS.forEach(function (item) {
+        var kind = stationKind(item[0]);
+        var css = "station";
+        if (kind === "done") css += " is-done";
+        else if (kind === "live") css += " is-live";
+        else if (kind === "stop") css += " is-stop";
+        else if (kind === "rejected") css += " is-rejected";
+        else if (kind === "pending") css += " is-pending";
+        else css += " is-idle";
+        var li = el("li", css);
+        var dot = el("span", "dot");
+        dot.setAttribute("aria-hidden", "true");
+        var label = stationLabel(kind);
+        li.append(dot, bi(item[1], item[2], "station-name"), bi(label[0], label[1], "station-state"));
+        pathEl.append(li);
+      });
+    }
+
+    function renderProposal() {
+      var s = scenario();
+      var head = el("div", "panel-head");
+      var title = el("h2");
+      title.id = "proposal-title";
+      title.append(el("span", null, "提案"), el("span", "en", "Proposal"));
+      title.querySelector(".en").lang = "en";
+      var tag = el("span", s.rejected ? "tag danger" : "tag");
+      tag.append(el("span", null, s.rejected ? "含被拒绝字段" : "非权威"), el("span", "en", s.rejected ? "Rejected field" : "Non-authoritative"));
+      tag.querySelector(".en").lang = "en";
+      head.append(title, tag);
+      proposalEl.replaceChildren(head, facts(s.proposal, s.rejected), note(s.proposalNoteZh, s.proposalNoteEn));
+    }
+
+    function renderJudgment() {
+      var s = scenario();
+      var head = el("div", "panel-head");
+      var title = el("h2");
+      title.id = "judgment-title";
+      title.append(el("span", null, "判断"), el("span", "en", "Judgment"));
+      title.querySelector(".en").lang = "en";
+      head.append(title);
+      var authority = el("div", "group");
+      var authorityTitle = el("h3");
+      authorityTitle.append(el("span", null, "权威"), el("span", "en", "Authority"));
+      authorityTitle.querySelector(".en").lang = "en";
+      authority.append(authorityTitle);
+      if (!revealAuthority()) authority.append(waiting("运行到绑定身份后，这里才会出现。", "This appears after trusted context is bound."));
+      else if (s.authority.length) authority.append(facts(s.authority), note(s.authorityNoteZh, s.authorityNoteEn));
+      else authority.append(note(s.authorityNoteZh, s.authorityNoteEn));
+      var policy = el("div", "group");
+      var policyTitle = el("h3");
+      policyTitle.append(el("span", null, "策略"), el("span", "en", "Policy"));
+      policyTitle.querySelector(".en").lang = "en";
+      policy.append(policyTitle);
+      if (!revealPolicy()) policy.append(waiting("运行到策略决定后，这里才会出现。", "This appears after the policy decision."));
+      else {
+        policy.append(note(s.policyTitleZh, s.policyTitleEn), note(s.policyNoteZh, s.policyNoteEn));
+        if (s.compare && hasEvent("policy_decided")) {
+          var compare = el("div", "compare");
+          var left = el("div", "amount");
+          left.append(pair(s.compare[0], s.compare[1]), el("strong", null, s.compare[2]));
+          var right = el("div", "amount");
+          right.append(pair(s.compare[3], s.compare[4]), el("strong", null, s.compare[5]));
+          compare.append(left, bi(s.compare[6], s.compare[7], "relation"), right);
+          policy.append(compare);
+        }
+      }
+      judgmentEl.replaceChildren(head, authority, policy);
+    }
+
+    function renderExecution() {
+      var s = scenario();
+      var head = el("div", "panel-head");
+      var title = el("h2");
+      title.id = "execution-title";
+      title.append(el("span", null, "执行"), el("span", "en", "Execution"));
+      title.querySelector(".en").lang = "en";
+      var tag = el("span", "tag");
+      tag.append(el("span", null, "真实适配器关闭"), el("span", "en", "Real adapter disabled"));
+      tag.querySelector(".en").lang = "en";
+      head.append(title, tag);
+      executionEl.replaceChildren(head);
+      if (!revealExecution()) executionEl.append(waiting("还没到执行。如果前面已经停下，这里会保持未调用。", "Execution has not been reached."));
+      else executionEl.append(facts(s.execution), note(s.executionNoteZh, s.executionNoteEn));
+    }
+
+    function renderEvidence() {
+      var s = scenario();
+      evidenceEl.className = "timeline-wrap" + (phase === "done" ? " tone-" + s.tone : "");
+      var title = el("h2");
+      title.id = "evidence-title";
+      title.append(el("span", null, "证据"), el("span", "en", "Evidence"));
+      title.querySelector(".en").lang = "en";
+      var lead = phase === "idle"
+        ? note("还没有证据。运行后会按真实顺序逐条出现。", "No evidence yet. Rows appear in the real order after you run.")
+        : note(phase === "running" ? ("已出现 " + shown + " 步。") : s.evidenceLeadZh, phase === "running" ? (shown + " steps so far.") : s.evidenceLeadEn);
+      var list = el("ol", "timeline");
+      visible().forEach(function (item, index) {
+        var li = el("li", "event" + (index === shown - 1 && phase === "running" ? " is-current is-fresh" : "") + (phase === "done" && index === s.evidence.length - 1 ? " is-stop" : ""));
+        var hit = el("button", "event-hit");
+        hit.type = "button";
+        hit.append(el("span", "event-index", String(index + 1).padStart(2, "0")));
+        var rail = el("div", "rail");
+        rail.append(el("div", "node"));
+        var copy = el("div", "event-copy");
+        copy.append(el("p", "event-name", item.name), pair(item.zh, item.en));
+        hit.append(rail, copy);
+        hit.addEventListener("click", function () { linkStation(item.station); });
+        li.append(hit);
+        list.append(li);
+      });
+      evidenceEl.replaceChildren(title, lead, list);
+      if (finished() && s.absentZh) evidenceEl.append(note(s.absentZh, s.absentEn));
+    }
+
+    function renderTechnical() {
+      var s = scenario();
+      if (!finished()) {
+        technicalEl.replaceChildren(note("运行结束后才显示原因码和事件名。", "Reason codes appear after the run finishes."));
+        return;
+      }
+      var list = el("dl", "facts");
+      [
+        ["种子", "Seed", s.seed],
+        ["结果", "Outcome", s.outcomeCode],
+        ["原因", "Reason", s.reason],
+        ["决定", "Decision", s.decision],
+        ["规则", "Rule", s.rule],
+        ["调用次数", "Adapter calls", s.execution[0][2]],
+        ["事件", "Events", s.evidence.map(function (item) { return item.name; }).join(", ")]
+      ].forEach(function (item) {
+        var row = el("div", "fact is-stack");
+        row.append(el("dt", null, ""), el("dd", null, item[2]));
+        row.querySelector("dt").replaceChildren(pair(item[0], item[1]));
+        list.append(row);
+      });
+      technicalEl.replaceChildren(list);
+    }
+
+    function render() {
+      document.title = "受控执行控制台 - " + scenario().zh;
+      renderSwitch();
+      renderRun();
+      renderVerdict();
+      renderPath();
+      renderProposal();
+      renderJudgment();
+      renderExecution();
+      renderEvidence();
+      renderTechnical();
+    }
+
+    function linkStation(station) {
+      var id = station === "proposal" ? "proposal" : (station === "guard" || station === "adapter" ? "execution" : "judgment");
+      var panel = document.getElementById(id);
+      document.querySelectorAll(".panel.is-linked").forEach(function (node) { node.classList.remove("is-linked"); });
+      panel.classList.add("is-linked");
+      panel.scrollIntoView({ behavior: reduceMotion() ? "auto" : "smooth", block: "nearest" });
+    }
+
+    function select(index, focus) {
+      generation += 1;
+      clearTimers();
+      current = index;
+      phase = "idle";
+      shown = 0;
+      render();
+      if (focus) document.getElementById("scenario-" + scenario().id).focus();
+    }
+
+    function run() {
+      generation += 1;
+      var gen = generation;
+      clearTimers();
+      phase = "running";
+      shown = 0;
+      render();
+      var total = scenario().evidence.length;
+      var gap = reduceMotion() ? 0 : 420;
+      for (var i = 1; i <= total; i += 1) {
+        timers.push(setTimeout(function (count) {
+          if (gen !== generation) return;
+          shown = count;
+          phase = count === total ? "done" : "running";
+          render();
+        }, gap * i, i));
+      }
+    }
+
+    function onScenarioKey(event) {
+      var next = current;
+      if (event.key === "ArrowRight" || event.key === "ArrowDown") next = (current + 1) % SCENARIOS.length;
+      else if (event.key === "ArrowLeft" || event.key === "ArrowUp") next = (current + SCENARIOS.length - 1) % SCENARIOS.length;
+      else if (event.key === "Home") next = 0;
+      else if (event.key === "End") next = SCENARIOS.length - 1;
+      else return;
+      event.preventDefault();
+      select(next, true);
+    }
+
+    runBtn.addEventListener("click", run);
+    document.addEventListener("keydown", function (event) {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      var index = ["1", "2", "3", "4"].indexOf(event.key);
+      if (index >= 0) select(index, true);
+      if (event.key === "Enter" && event.target === document.body) run();
+    });
+
+    render();
+  </script>
+</body>
+</html>
