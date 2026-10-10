@@ -8,6 +8,18 @@ frozen.
 
 ### Changed
 
+- Gate 1 Slice 1 Review Fix 01: missing mock fixture fail-closed; layered
+  business-success proof; evidence order aligned with reserve; release failed
+  idempotency reservations; CNY currency fail-closed.
+
+### Added
+
+- Gate 1 Slice 1: minimal in-memory reference runtime, mock adapter, evidence
+  trace, in-memory idempotency, and seed-01/02/03 runtime conformance tests
+  (branch `feat/g1-minimal-runtime`; not yet merged to main).
+
+### Changed
+
 - Gate 0 Review Fix 02: add `application_id` to proposal forbidden /
   `PROTECTED_FIELDS` so trusted-context identity matches principal/tenant;
   refresh `docs/01_prd.md` baseline facts to current GitHub main (still Draft).
