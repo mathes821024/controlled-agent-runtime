@@ -6,6 +6,12 @@ frozen.
 
 ## [Unreleased]
 
+### Added
+
+- G1 Slice 2 Human Acceptance UI runtime integration: local FastAPI bridge
+  (`POST /api/demo/run`) serves the console and returns ReferenceRuntime results
+  (branch `feat/g1-human-runtime-ui`; not merged).
+
 ### Changed
 
 - Gate 1 Slice 1 Review Fix 01: missing mock fixture fail-closed; layered

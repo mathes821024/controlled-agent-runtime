@@ -301,6 +301,7 @@
       return Object.assign({ name: name, station: station, zh: zh, en: en }, extra || {});
     }
 
+    // Static scenario copy for labels/proposal panels. Outcome/evidence after Run come from /api/demo/run.
     var SCENARIOS = [
       {
         id: "safe",
@@ -894,6 +895,7 @@
       var list = el("dl", "facts");
       [
         ["种子", "Seed", s.seed],
+        ["结果来源", "Result source", s.runtimeSource || "static template (not run)"],
         ["结果", "Outcome", s.outcomeCode],
         ["原因", "Reason", s.reason],
         ["决定", "Decision", s.decision],
@@ -940,14 +942,120 @@
       if (focus) document.getElementById("scenario-" + scenario().id).focus();
     }
 
-    function run() {
-      generation += 1;
-      var gen = generation;
-      clearTimers();
-      phase = "running";
-      shown = 0;
-      render();
+    var API_SCENARIO = {
+      safe: "safe_auto",
+      review: "human_review",
+      mismatch: "amount_mismatch",
+      attack: "authority_attack"
+    };
+
+    function applyRuntimeResult(data) {
+      var s = scenario();
+      var ui = data.ui || {};
+      s.tone = ui.tone || "closed";
+      s.outcomeZh = ui.outcome_zh || "已安全停止";
+      s.outcomeEn = ui.outcome_en || "FAILED CLOSED";
+      s.outcomeCode = data.outcome || "failed_closed";
+      s.whyZh = ui.why_zh || data.summary || "运行结果来自 ReferenceRuntime。";
+      s.whyEn = ui.why_en || data.summary || "Outcome comes from ReferenceRuntime.";
+      s.reason = data.reason_code || "unknown";
+      s.rule = (data.decision && data.decision.rule_id) ? data.decision.rule_id : "无";
+      s.decision = (data.decision && data.decision.outcome) ? data.decision.outcome : "无";
+      s.stopStation = ui.stop_station || "";
+      s.seed = "API scenario: " + (data.scenario || API_SCENARIO[s.id] || s.id) + " → ReferenceRuntime";
+      var calls = String(data.adapter_call_count == null ? 0 : data.adapter_call_count);
+      var resp = data.resp_code == null || data.resp_code === "" ? "无" : String(data.resp_code);
+      var biz = data.normalized_business_result == null || data.normalized_business_result === ""
+        ? "无"
+        : String(data.normalized_business_result);
+      s.execution = [
+        ["调用次数", "Adapter calls", calls],
+        ["适配器", "Adapter", Number(calls) > 0 ? "模拟退款适配器" : "未调用"],
+        ["真实适配器", "Real adapter", "关闭"],
+        ["响应码", "respCode", resp],
+        ["业务结果", "Business result", biz],
+        ["幂等", "Idempotency", Number(calls) > 0 ? "已占用，并完成" : "未占用"]
+      ];
+      s.executionNoteZh = "执行结论来自本地 ReferenceRuntime，不是前端预写。";
+      s.executionNoteEn = "Execution facts come from local ReferenceRuntime, not canned UI data.";
+      var events = Array.isArray(data.evidence) ? data.evidence : [];
+      s.evidence = events.map(function (item) {
+        return step(
+          item.name,
+          item.station || "adapter",
+          item.zh || item.summary || item.name,
+          item.en || item.summary || item.name,
+          item.reject ? { reject: true } : null
+        );
+      });
+      s.evidenceLeadZh = events.length
+        ? ("按 Runtime 真实顺序记录了 " + events.length + " 步。")
+        : "没有证据。运行时未返回事件。";
+      s.evidenceLeadEn = events.length
+        ? (events.length + " events from ReferenceRuntime, in order.")
+        : "No evidence returned by the runtime.";
+      var names = events.map(function (item) { return item.name; });
+      var missing = [
+        "trusted_context_bound",
+        "authoritative_facts_loaded",
+        "policy_decided",
+        "state_revalidated",
+        "idempotency_reserved",
+        "mock_adapter_called",
+        "result_normalized"
+      ].filter(function (name) { return names.indexOf(name) < 0; });
+      if (missing.length && data.outcome !== "executed") {
+        s.absentZh = "没有记录：" + missing.join("、") + "。";
+        s.absentEn = "Not recorded: " + missing.join(", ") + ".";
+      } else {
+        s.absentZh = "";
+        s.absentEn = "";
+      }
+      s.runtimeSource = (ui.source || "ReferenceRuntime");
+    }
+
+    function applyUnavailable(messageZh, messageEn, reason) {
+      var s = scenario();
+      s.tone = "closed";
+      s.outcomeZh = "运行时不可用";
+      s.outcomeEn = "RUNTIME UNAVAILABLE";
+      s.outcomeCode = "failed_closed";
+      s.whyZh = messageZh;
+      s.whyEn = messageEn;
+      s.reason = reason || "runtime_unavailable";
+      s.rule = "无";
+      s.decision = "无";
+      s.stopStation = "proposal";
+      s.seed = "API unavailable";
+      s.execution = [
+        ["调用次数", "Adapter calls", "0"],
+        ["适配器", "Adapter", "未调用"],
+        ["真实适配器", "Real adapter", "关闭"],
+        ["响应码", "respCode", "无"],
+        ["业务结果", "Business result", "无"],
+        ["幂等", "Idempotency", "未占用"]
+      ];
+      s.executionNoteZh = "没有展示旧结果或预设成功。";
+      s.executionNoteEn = "No previous or canned success is shown.";
+      s.evidence = [
+        step("proposal_received", "proposal", "请求已发出。", "Request sent."),
+        step("trace_completed", "proposal", "安全停止。本地 API / Runtime 不可用。", "Fail closed. Local API/runtime unavailable.", { reject: true })
+      ];
+      s.evidenceLeadZh = "没有真实 Runtime 证据。";
+      s.evidenceLeadEn = "No live runtime evidence.";
+      s.absentZh = "没有进入权威、策略或适配器。";
+      s.absentEn = "Authority, policy, and adapter were not reached.";
+      s.runtimeSource = "error";
+    }
+
+    function playEvidence(gen) {
       var total = scenario().evidence.length;
+      if (!total) {
+        phase = "done";
+        shown = 0;
+        render();
+        return;
+      }
       var gap = reduceMotion() ? 0 : 420;
       for (var i = 1; i <= total; i += 1) {
         timers.push(setTimeout(function (count) {
@@ -957,6 +1065,76 @@
           render();
         }, gap * i, i));
       }
+    }
+
+    function run() {
+      generation += 1;
+      var gen = generation;
+      clearTimers();
+      phase = "running";
+      shown = 0;
+      render();
+      var scenarioId = API_SCENARIO[scenario().id] || scenario().id;
+      fetch("/api/demo/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify({ scenario: scenarioId })
+      }).then(function (response) {
+        return response.json().then(function (data) {
+          return { ok: response.ok, status: response.status, data: data };
+        }).catch(function () {
+          return {
+            ok: false,
+            status: response.status,
+            data: {
+              outcome: "failed_closed",
+              reason_code: "invalid_response",
+              adapter_call_count: 0,
+              evidence: [],
+              ui: { source: "error" }
+            }
+          };
+        });
+      }).then(function (payload) {
+        if (gen !== generation) return;
+        var data = payload.data || {};
+        if (!payload.ok && payload.status === 400) {
+          applyUnavailable(
+            "未知场景。没有执行适配器。",
+            "Unknown scenario. Adapter was not called.",
+            (data.detail && data.detail.reason_code) || data.reason_code || "unknown_scenario"
+          );
+        } else if (!payload.ok && (!data.outcome || data.ui && data.ui.source === "error")) {
+          applyUnavailable(
+            "本地 API 或 Runtime 不可用。没有展示预设成功结果。",
+            "Local API or runtime unavailable. No canned success is shown.",
+            data.reason_code || "runtime_unavailable"
+          );
+        } else if (!data || !data.outcome || !Array.isArray(data.evidence)) {
+          applyUnavailable(
+            "响应无效。没有展示预设成功结果。",
+            "Invalid response. No canned success is shown.",
+            "invalid_response"
+          );
+        } else {
+          applyRuntimeResult(data);
+        }
+        shown = 0;
+        phase = "running";
+        render();
+        playEvidence(gen);
+      }).catch(function () {
+        if (gen !== generation) return;
+        applyUnavailable(
+          "无法连接本地 Runtime。请先运行 make demo。",
+          "Could not reach the local runtime. Start it with make demo.",
+          "runtime_unavailable"
+        );
+        shown = 0;
+        phase = "running";
+        render();
+        playEvidence(gen);
+      });
     }
 
     function onScenarioKey(event) {
