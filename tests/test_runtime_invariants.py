@@ -128,5 +128,93 @@ class RuntimeInvariantTests(unittest.TestCase):
         self.assertEqual(bad.outcome, RuntimeOutcome.FAILED_CLOSED)
 
 
+
+    def test_missing_mock_adapter_fixture_never_executes(self) -> None:
+        seed = copy.deepcopy(self.base)
+        seed["tool_fixtures"].pop("mock_refund_adapter", None)
+        result = self._run(seed)
+        self.assertNotEqual(result.outcome, RuntimeOutcome.EXECUTED)
+        self.assertEqual(result.outcome, RuntimeOutcome.FAILED_CLOSED)
+        self.assertIn("mock_adapter_fixture", result.reason_code)
+        self.assertEqual(result.adapter_call_count, 0)
+        self.assertNotIn("mock_adapter_called", result.event_names())
+        self.assertNotIn("refund_succeeded", result.event_names())
+
+    def test_schema_failure_never_executed_even_if_respcode_00(self) -> None:
+        seed = copy.deepcopy(self.base)
+        seed["tool_fixtures"]["mock_refund_adapter"] = {
+            "transport_status": "success",
+            "protocol_status": "success",
+            "schema_status": "failed",
+            "respCode": "00",
+            "normalized_business_result": "REFUND_SUCCEEDED",
+            "business_status": "success",
+        }
+        result = self._run(seed)
+        self.assertNotEqual(result.outcome, RuntimeOutcome.EXECUTED)
+        self.assertEqual(result.outcome, RuntimeOutcome.FAILED_CLOSED)
+
+    def test_business_status_failure_never_executed_even_if_respcode_00(self) -> None:
+        seed = copy.deepcopy(self.base)
+        seed["tool_fixtures"]["mock_refund_adapter"] = {
+            "transport_status": "success",
+            "protocol_status": "success",
+            "schema_status": "success",
+            "respCode": "00",
+            "normalized_business_result": "REFUND_SUCCEEDED",
+            "business_status": "failed",
+        }
+        result = self._run(seed)
+        self.assertNotEqual(result.outcome, RuntimeOutcome.EXECUTED)
+        self.assertEqual(result.outcome, RuntimeOutcome.FAILED_CLOSED)
+
+    def test_failed_execution_retry_is_not_success_replay(self) -> None:
+        seed = copy.deepcopy(self.base)
+        seed["tool_fixtures"]["mock_refund_adapter"] = {
+            "transport_status": "success",
+            "protocol_status": "success",
+            "schema_status": "success",
+            "respCode": "99",
+            "normalized_business_result": "REFUND_FAILED",
+            "business_status": "failed",
+        }
+        runtime = ReferenceRuntime()
+        first = runtime.run_seed(seed)
+        self.assertEqual(first.outcome, RuntimeOutcome.FAILED_CLOSED)
+        self.assertEqual(first.resp_code, "99")
+        second = runtime.run_seed(seed)
+        self.assertNotEqual(second.outcome, RuntimeOutcome.IDEMPOTENT_REPLAY)
+        self.assertNotEqual(second.outcome, RuntimeOutcome.EXECUTED)
+        self.assertEqual(second.outcome, RuntimeOutcome.FAILED_CLOSED)
+        self.assertEqual(second.resp_code, "99")
+
+    def test_already_refunded_retry_is_not_success_replay(self) -> None:
+        seed = copy.deepcopy(self.base)
+        seed["tool_fixtures"]["mock_refund_adapter"] = {
+            "transport_status": "success",
+            "protocol_status": "success",
+            "schema_status": "success",
+            "respCode": "12",
+            "normalized_business_result": "ALREADY_REFUNDED",
+            "business_status": "already_refunded",
+        }
+        runtime = ReferenceRuntime()
+        first = runtime.run_seed(seed)
+        self.assertEqual(first.outcome, RuntimeOutcome.FAILED_CLOSED)
+        self.assertEqual(first.normalized_business_result, "ALREADY_REFUNDED")
+        second = runtime.run_seed(seed)
+        self.assertNotEqual(second.outcome, RuntimeOutcome.IDEMPOTENT_REPLAY)
+        self.assertNotEqual(second.outcome, RuntimeOutcome.EXECUTED)
+        self.assertEqual(second.outcome, RuntimeOutcome.FAILED_CLOSED)
+        self.assertEqual(second.normalized_business_result, "ALREADY_REFUNDED")
+
+    def test_non_cny_currency_fail_closed(self) -> None:
+        seed = copy.deepcopy(self.base)
+        seed["tool_fixtures"]["transaction_query_tool"]["currency"] = "USD"
+        result = self._run(seed)
+        self.assertEqual(result.outcome, RuntimeOutcome.FAILED_CLOSED)
+        self.assertIn("currency", result.reason_code)
+        self.assertEqual(result.adapter_call_count, 0)
+
 if __name__ == "__main__":
     unittest.main()

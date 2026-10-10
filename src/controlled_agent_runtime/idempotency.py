@@ -2,6 +2,11 @@
 
 This is NOT a production idempotency key design (OQ-10 remains open).
 Keys are structured runtime tuples for tests only.
+
+Minimal states for Slice 1:
+- RESERVED (in-flight placeholder)
+- COMPLETED (successful execution only; may be replayed)
+- RELEASED (failed / unresolved execution clears reservation)
 """
 
 from __future__ import annotations
@@ -9,7 +14,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Optional
 
-from .models import RuntimeResult
+from .models import RuntimeOutcome, RuntimeResult
 
 
 @dataclass(frozen=True)
@@ -43,6 +48,12 @@ class InMemoryIdempotencyStore:
     def get(self, identity: IdempotencyIdentity) -> Optional[RuntimeResult]:
         return self._reserved.get(identity.key())
 
+    def get_completed(self, identity: IdempotencyIdentity) -> Optional[RuntimeResult]:
+        existing = self.get(identity)
+        if existing is not None and existing.outcome == RuntimeOutcome.EXECUTED:
+            return existing
+        return None
+
     def reserve(self, identity: IdempotencyIdentity, placeholder: RuntimeResult) -> bool:
         """Return True if newly reserved; False if already present."""
         key = identity.key()
@@ -52,4 +63,10 @@ class InMemoryIdempotencyStore:
         return True
 
     def complete(self, identity: IdempotencyIdentity, result: RuntimeResult) -> None:
+        if result.outcome != RuntimeOutcome.EXECUTED:
+            raise ValueError("idempotency_complete_requires_executed")
         self._reserved[identity.key()] = result
+
+    def release(self, identity: IdempotencyIdentity) -> None:
+        """Drop in-flight / failed reservation so retries are not fake replays."""
+        self._reserved.pop(identity.key(), None)

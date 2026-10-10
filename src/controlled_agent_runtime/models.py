@@ -136,12 +136,17 @@ class AuthoritativeFacts:
         resource_ref = raw.get("resource_ref")
         if not resource_ref:
             raise ValueError("authoritative_resource_ref_missing")
+        if "currency" not in raw:
+            raise ValueError("authoritative_currency_missing")
+        currency = str(raw["currency"])
+        if currency != "CNY":
+            raise ValueError("authoritative_currency_not_cny")
         return cls(
             found=True,
             resource_ref=str(resource_ref),
             original_amount_minor=amount,
             transaction_status=str(raw.get("transaction_status", "")),
-            currency=str(raw.get("currency", "CNY")),
+            currency=currency,
         )
 
 

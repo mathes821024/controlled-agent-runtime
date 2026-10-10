@@ -5,7 +5,11 @@ from __future__ import annotations
 from typing import Any, Mapping, Optional
 from uuid import uuid4
 
-from .adapters.mock_refund import MockAdapterRequest, MockRefundAdapter
+from .adapters.mock_refund import (
+    MockAdapterRequest,
+    MockAdapterUnavailableError,
+    MockRefundAdapter,
+)
 from .evidence import EvidenceTrace
 from .idempotency import IdempotencyIdentity, InMemoryIdempotencyStore
 from .models import (
@@ -51,8 +55,10 @@ class ReferenceRuntime:
         mock_adapter_fixture: Optional[Mapping[str, Any]] = None,
     ) -> RuntimeResult:
         trace = EvidenceTrace()
-        adapter = MockRefundAdapter(mock_adapter_fixture)
+        adapter_call_count = 0
         decision = None
+        identity: Optional[IdempotencyIdentity] = None
+        reserved = False
 
         try:
             trace.record("proposal_received", summary="proposal accepted for validation")
@@ -70,7 +76,7 @@ class ReferenceRuntime:
                     outcome=RuntimeOutcome.FAILED_CLOSED,
                     reason_code=str(exc),
                     decision=None,
-                    adapter_call_count=adapter.call_count,
+                    adapter_call_count=0,
                     evidence=trace.events,
                     summary="proposal rejected",
                 )
@@ -90,7 +96,7 @@ class ReferenceRuntime:
                     outcome=RuntimeOutcome.FAILED_CLOSED,
                     reason_code=str(exc),
                     decision=None,
-                    adapter_call_count=adapter.call_count,
+                    adapter_call_count=0,
                     evidence=trace.events,
                     summary="trusted context missing",
                 )
@@ -113,7 +119,7 @@ class ReferenceRuntime:
                     outcome=RuntimeOutcome.FAILED_CLOSED,
                     reason_code=str(exc),
                     decision=None,
-                    adapter_call_count=adapter.call_count,
+                    adapter_call_count=0,
                     evidence=trace.events,
                     summary="authoritative facts unavailable",
                 )
@@ -136,7 +142,7 @@ class ReferenceRuntime:
                     outcome=RuntimeOutcome.DENIED,
                     reason_code=decision.reason_code,
                     decision=decision,
-                    adapter_call_count=adapter.call_count,
+                    adapter_call_count=0,
                     evidence=trace.events,
                 )
 
@@ -146,7 +152,7 @@ class ReferenceRuntime:
                     outcome=RuntimeOutcome.NEEDS_INPUT,
                     reason_code=decision.reason_code,
                     decision=decision,
-                    adapter_call_count=adapter.call_count,
+                    adapter_call_count=0,
                     evidence=trace.events,
                 )
 
@@ -157,7 +163,7 @@ class ReferenceRuntime:
                     outcome=RuntimeOutcome.NEEDS_REVIEW,
                     reason_code=decision.reason_code,
                     decision=decision,
-                    adapter_call_count=adapter.call_count,
+                    adapter_call_count=0,
                     evidence=trace.events,
                 )
 
@@ -173,12 +179,8 @@ class ReferenceRuntime:
                 refund_amount_minor=refund_amount,
             )
 
-            existing = self.idempotency_store.get(identity)
-            if existing is not None and existing.outcome in {
-                RuntimeOutcome.EXECUTED,
-                RuntimeOutcome.IDEMPOTENT_REPLAY,
-            }:
-                # Fresh trace for this call: prove no second adapter invocation.
+            completed = self.idempotency_store.get_completed(identity)
+            if completed is not None:
                 replay_trace = EvidenceTrace()
                 replay_trace.record("proposal_received", summary="duplicate identity")
                 replay_trace.record("proposal_validated")
@@ -191,7 +193,7 @@ class ReferenceRuntime:
                 )
                 replay_trace.record(
                     "idempotency_hit",
-                    summary="prior execution reused; adapter not called",
+                    summary="prior completed execution reused; adapter not called",
                     reason_code="idempotent_replay",
                 )
                 replay_trace.record("trace_completed", reason_code="idempotent_replay")
@@ -201,14 +203,14 @@ class ReferenceRuntime:
                     decision=decision,
                     adapter_call_count=0,
                     evidence=replay_trace.events,
-                    normalized_business_result=existing.normalized_business_result,
-                    resp_code=existing.resp_code,
-                    execution_token=existing.execution_token,
-                    idempotency_key=existing.idempotency_key,
+                    normalized_business_result=completed.normalized_business_result,
+                    resp_code=completed.resp_code,
+                    execution_token=completed.execution_token,
+                    idempotency_key=completed.idempotency_key,
                     summary="duplicate action identity; adapter not called",
                 )
 
-            # Revalidate before side effects.
+            # Revalidate before side effects / reservation.
             if proposal.requested_amount_minor != facts.original_amount_minor:
                 trace.record(
                     "state_revalidated",
@@ -220,7 +222,7 @@ class ReferenceRuntime:
                     outcome=RuntimeOutcome.DENIED,
                     reason_code="full_refund_only",
                     decision=decision,
-                    adapter_call_count=adapter.call_count,
+                    adapter_call_count=0,
                     evidence=trace.events,
                 )
             if facts.original_amount_minor > 10000:
@@ -234,9 +236,13 @@ class ReferenceRuntime:
                     outcome=RuntimeOutcome.NEEDS_REVIEW,
                     reason_code="demo_amount_threshold",
                     decision=decision,
-                    adapter_call_count=adapter.call_count,
+                    adapter_call_count=0,
                     evidence=trace.events,
                 )
+
+            # Evidence order == actual operation order:
+            # guards checked → record state_revalidated → reserve → record reserved
+            trace.record("state_revalidated", summary="guards still hold")
 
             execution_token = f"exec_{uuid4().hex}"
             idempotency_key = f"idem_{uuid4().hex}"
@@ -251,32 +257,66 @@ class ReferenceRuntime:
             )
             reserved = self.idempotency_store.reserve(identity, placeholder)
             if not reserved:
-                existing = self.idempotency_store.get(identity)
-                assert existing is not None
+                existing = self.idempotency_store.get_completed(identity)
+                if existing is not None:
+                    trace.record(
+                        "idempotency_hit",
+                        summary="completed execution found; adapter not called",
+                        reason_code="idempotent_replay",
+                    )
+                    trace.record("trace_completed", reason_code="idempotent_replay")
+                    return RuntimeResult(
+                        outcome=RuntimeOutcome.IDEMPOTENT_REPLAY,
+                        reason_code="idempotent_replay",
+                        decision=decision,
+                        adapter_call_count=0,
+                        evidence=trace.events,
+                        normalized_business_result=existing.normalized_business_result,
+                        resp_code=existing.resp_code,
+                        execution_token=existing.execution_token,
+                        idempotency_key=existing.idempotency_key,
+                        summary="duplicate action identity; adapter not called",
+                    )
+                # Non-completed occupant must not become fake success replay.
                 trace.record(
-                    "idempotency_hit",
-                    summary="reservation raced; adapter not called",
-                    reason_code="idempotent_replay",
+                    "idempotency_conflict",
+                    summary="non_completed_reservation_present",
+                    reason_code="idempotency_conflict",
                 )
-                trace.record("trace_completed", reason_code="idempotent_replay")
+                trace.record("trace_completed", reason_code="idempotency_conflict")
                 return RuntimeResult(
-                    outcome=RuntimeOutcome.IDEMPOTENT_REPLAY,
-                    reason_code="idempotent_replay",
+                    outcome=RuntimeOutcome.FAILED_CLOSED,
+                    reason_code="idempotency_conflict",
                     decision=decision,
                     adapter_call_count=0,
                     evidence=trace.events,
-                    normalized_business_result=existing.normalized_business_result,
-                    resp_code=existing.resp_code,
-                    execution_token=existing.execution_token,
-                    idempotency_key=existing.idempotency_key,
-                    summary="duplicate action identity; adapter not called",
+                    summary="in-flight or failed reservation blocks unsafe replay",
                 )
 
-            trace.record("state_revalidated", summary="guards still hold")
             trace.record(
                 "idempotency_reserved",
                 summary="in_memory_reservation",
             )
+
+            try:
+                adapter = MockRefundAdapter(mock_adapter_fixture)
+            except MockAdapterUnavailableError as exc:
+                self.idempotency_store.release(identity)
+                reserved = False
+                trace.record(
+                    "result_normalized",
+                    summary="fail_closed",
+                    reason_code=str(exc),
+                )
+                trace.record("trace_completed", reason_code=str(exc))
+                return RuntimeResult(
+                    outcome=RuntimeOutcome.FAILED_CLOSED,
+                    reason_code=str(exc),
+                    decision=decision,
+                    adapter_call_count=0,
+                    evidence=trace.events,
+                    summary="mock adapter dependency unavailable",
+                )
 
             response = adapter.execute(
                 MockAdapterRequest(
@@ -288,20 +328,22 @@ class ReferenceRuntime:
                     execution_token=execution_token,
                 )
             )
+            adapter_call_count = adapter.call_count
             trace.record(
                 "mock_adapter_called",
                 summary=f"respCode={response.respCode}",
             )
 
-            # Transport/protocol success ≠ business success.
             business_ok = (
                 response.transport_status == "success"
                 and response.protocol_status == "success"
+                and response.schema_status == "success"
+                and response.business_status == "success"
                 and response.respCode == "00"
                 and response.normalized_business_result == "REFUND_SUCCEEDED"
             )
             if response.respCode == "12":
-                # OQ-11: do not invent final runtime outcome beyond normalization.
+                # OQ-11: normalize only; do not invent final success outcome.
                 normalized = "ALREADY_REFUNDED"
                 outcome = RuntimeOutcome.FAILED_CLOSED
                 reason = "already_refunded_outcome_unmapped"
@@ -328,7 +370,7 @@ class ReferenceRuntime:
                 outcome=outcome,
                 reason_code=reason,
                 decision=decision,
-                adapter_call_count=adapter.call_count,
+                adapter_call_count=adapter_call_count,
                 evidence=trace.events,
                 normalized_business_result=normalized,
                 resp_code=response.respCode,
@@ -338,15 +380,21 @@ class ReferenceRuntime:
             )
             if outcome == RuntimeOutcome.EXECUTED:
                 self.idempotency_store.complete(identity, result)
+                reserved = False
+            else:
+                self.idempotency_store.release(identity)
+                reserved = False
             return result
 
         except Exception as exc:  # fail closed
+            if reserved and identity is not None:
+                self.idempotency_store.release(identity)
             trace.record("trace_completed", reason_code="fail_closed")
             return RuntimeResult(
                 outcome=RuntimeOutcome.FAILED_CLOSED,
                 reason_code=f"unexpected:{type(exc).__name__}",
                 decision=decision,
-                adapter_call_count=adapter.call_count,
+                adapter_call_count=adapter_call_count,
                 evidence=trace.events,
                 summary=str(exc),
             )

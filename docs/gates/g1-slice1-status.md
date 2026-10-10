@@ -4,6 +4,9 @@
 **Frozen Gate 0 baseline:** `bd7e183290b2b33b981847f24d50b2560f31c7fa`  
 **Branch:** `feat/g1-minimal-runtime`  
 **Evidence date:** 2026-10-10
+**Review Fix 01:** missing mock dependency fail-closed; layered business
+success proof; evidence order aligned with reserve; failed executions release
+idempotency reservation (OQ-10 still open).
 
 ## Goal
 
