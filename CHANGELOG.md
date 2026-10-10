@@ -6,6 +6,12 @@ frozen.
 
 ## [Unreleased]
 
+### Added
+
+- Gate 1 Slice 1: minimal in-memory reference runtime, mock adapter, evidence
+  trace, in-memory idempotency, and seed-01/02/03 runtime conformance tests
+  (branch `feat/g1-minimal-runtime`; not yet merged to main).
+
 ### Changed
 
 - Gate 0 Review Fix 02: add `application_id` to proposal forbidden /
