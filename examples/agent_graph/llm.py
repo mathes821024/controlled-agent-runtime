@@ -1,7 +1,10 @@
 """LLM provider abstraction for the example graph.
 
-Default is the deterministic stub. ``local`` and ``openai`` are reserved
-for a later OpenAI-compatible endpoint and fail closed until implemented.
+- ``CAR_AGENT_LLM=stub`` (default): deterministic CI / offline fallback.
+  This is not the Agent demo claim.
+- ``CAR_AGENT_LLM=local`` / ``openai``: LangChain ChatOpenAI-compatible
+  client + structured output (see ``chat_llm.invoke_structured_proposal``).
+
 No model name is locked. Providers draft structured proposals only.
 """
 
@@ -29,7 +32,7 @@ class AgentLlmProvider(Protocol):
 
 
 class StubAgentLlm:
-    """Deterministic mapper. No HTTP, no weights, no adapter calls."""
+    """Deterministic mapper for CI / offline. No HTTP, no weights, no adapters."""
 
     name = "stub"
 
@@ -40,19 +43,6 @@ class StubAgentLlm:
         if scenario_name:
             return dict(scenario_to_payload(scenario_name)["proposal"])
         return user_input_to_proposal(user_input)
-
-
-class ReservedAgentLlm:
-    """Placeholder for ``local`` / ``openai``. Fail closed; no download."""
-
-    def __init__(self, name: str) -> None:
-        self.name = name
-
-    def draft_proposal(
-        self, user_input: str, scenario: str | None = None
-    ) -> dict[str, Any]:
-        del user_input, scenario
-        raise ValueError(f"reserved_llm_not_implemented:{self.name}")
 
 
 def resolve_agent_llm_mode(environ: dict[str, str] | None = None) -> str:
@@ -69,4 +59,8 @@ def get_agent_llm(
     mode = resolve_agent_llm_mode(environ)
     if mode == "stub":
         return StubAgentLlm()
-    return ReservedAgentLlm(mode)
+    try:
+        from .chat_llm import ChatCompatibleAgentLlm
+    except ImportError:  # pragma: no cover
+        from chat_llm import ChatCompatibleAgentLlm
+    return ChatCompatibleAgentLlm(mode, environ)

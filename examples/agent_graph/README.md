@@ -1,28 +1,31 @@
-# Stub LangGraph example (optional)
+# LangGraph example (optional)
 
 Local / integration evidence only. Not production authorization. Not a Gate PASS.
+**Stub ≠ Agent demo claim.** `CAR_AGENT_LLM=stub` is CI / offline fallback only.
 
-This example drafts a **deterministic structured proposal** from `user_input`
-(or an optional canned `scenario` for CI) and submits it to Controlled Agent
-Runtime over HTTP. **CAR decides.** The graph has no refund / adapter / write
-tools.
+This example drafts a structured proposal from `user_input` and submits it to
+Controlled Agent Runtime over HTTP **without a canned scenario**. **CAR decides.**
+The graph has no refund / adapter / write tools.
 
 ## What this is
 
-- LangChain-shaped example package under `examples/agent_graph/`
-- Default LLM: `CAR_AGENT_LLM=stub` (`stub_llm` maps example Chinese/English
-  text → `ALLOWED_HOOK_FIELDS`; no API key, no weight download)
-- Primary path: `user_input` → proposal → `POST /api/agent/propose` (no scenario)
-- Optional canned `scenario` for the four demo/CI regressions
-- Optional extra: `pip install -e ".[demo,agent]"` (`httpx`, `langchain-core`, `langgraph`)
+- LangChain / LangGraph example under `examples/agent_graph/`
+- Primary path: `--user-input` → structured proposal → `POST /api/agent/propose`
+- Agent draft path: `CAR_AGENT_LLM=local` (or `openai`) uses LangChain
+  `ChatOpenAI` + `with_structured_output(ProposalDraft)` in
+  `chat_llm.invoke_structured_proposal`
+- CI path: `CAR_AGENT_LLM=stub` deterministic mapper (no network)
+- Optional extra: `pip install -e ".[demo,agent]"` (`httpx`, `langchain-core`,
+  `langchain-openai`, `langgraph`)
 
 ## What this is not
 
 - Not an authoritative HITL path (no LangGraph `interrupt` as approval)
 - Not LangSmith
 - Not a real payment rail
-- `CAR_AGENT_LLM=local` / `openai` are reserved and **fail closed** until an
-  OpenAI-compatible local endpoint is implemented. No model is locked.
+- Stub mode is **not** a Local LLM demo
+- No model name is locked. Examples (`llama3.2`, a cloud chat model) are
+  documentation only — set `CAR_AGENT_LLM_MODEL`
 
 ## Install (optional)
 
@@ -33,44 +36,43 @@ python3 -m venv .venv
 .venv/bin/pip install -e ".[demo,agent]"
 ```
 
-## Smoke (two terminals)
+## Primary demo (NL → proposal, no scenario)
 
-Primary agent path (proposal-driven, no scenario):
+Needs an OpenAI-compatible local endpoint (example: Ollama at
+`http://127.0.0.1:11434/v1`). This repo does **not** pull weights.
 
 ```bash
 make demo                  # terminal 1 — 127.0.0.1:8000
+export CAR_AGENT_LLM=local
+export CAR_AGENT_LLM_BASE_URL=http://127.0.0.1:11434/v1
+export CAR_AGENT_LLM_MODEL=llama3.2   # example only; use whatever the endpoint serves
+make agent-example USER_INPUT='帮我退一下订单 order_demo_001，金额 100 元。'
+# or
 make agent-example USER_INPUT='Please refund order_demo_001 for 100.00'
 ```
 
-Canned demo / CI (unchanged four scenarios):
+Connection / JSON failure **fail-closes** unless you opt in to
+`CAR_AGENT_LLM_FALLBACK=stub` (then the CI mapper runs; do not call that an
+LLM demo).
+
+## CI / offline stub (not the Agent claim)
 
 ```bash
-make agent-example SCENARIO=safe_auto
-make agent-example SCENARIO=human_review      # decision=needs_review
-make agent-example SCENARIO=amount_mismatch   # decision=denied
-make agent-example SCENARIO=authority_attack  # decision=denied (protected field)
+make agent-example                         # default CAR_AGENT_LLM=stub, --user-input
+make agent-example SCENARIO=safe_auto      # canned regression only
 ```
-
-Override the origin (default `http://127.0.0.1:8000`):
-
-```bash
-make agent-example USER_INPUT='Please refund order_demo_001 for 100.00' \
-  CAR_BASE_URL=http://127.0.0.1:8000
-```
-
-On the demo VPS, nginx already proxies `/hitl/` to uvicorn root. Public ingress
-is `http://HOST/hitl/api/agent/propose`. Do not open port 8000.
 
 ## Layout
 
 | File | Role |
 |---|---|
-| `stub_llm.py` | user text / scenario → structured proposal. Imported by core tests (no LangGraph). |
-| `llm.py` | Provider abstraction: `stub` default; `local` / `openai` reserved fail-closed. |
-| `graph.py` | `understand` → `draft_proposal` → `submit_to_car` → `done`. No side-effect tools. |
-| `__main__.py` | CLI: print CAR JSON |
+| `stub_llm.py` | CI mapper. Imported by core tests (no LangGraph). |
+| `llm.py` | Provider switch: stub vs ChatCompatible. |
+| `chat_llm.py` | **LangChain** `ChatOpenAI.with_structured_output(ProposalDraft)`. |
+| `graph.py` | `understand` → `draft_proposal` → `submit_to_car` → `done`. No write tools. |
+| `__main__.py` | CLI: primary `--user-input` |
 
 State fields: `user_input`, `proposal`, `car_response`, `decision`, `trace_id`
-(plus optional `scenario` for demo mode only).
+(plus optional `scenario` for canned CI only).
 
 CAR remains HITL / policy / execution authority.

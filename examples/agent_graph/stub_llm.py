@@ -70,6 +70,7 @@ SCENARIO_PROPOSALS: dict[str, dict[str, Any]] = {
 EXAMPLE_USER_TEXTS = {
     "Please refund order_demo_001 for 100.00": "safe_auto",
     "请退款订单 order_demo_001，金额 100.00": "safe_auto",
+    "帮我退一下订单 order_demo_001，金额 100 元。": "safe_auto",
     "Please refund order_demo_002 for 100.01": "human_review",
     "请退款 order_demo_002，金额 100.01": "human_review",
     "Please refund order_demo_003 for 80.00": "amount_mismatch",

@@ -27,7 +27,7 @@
 - [Runtime contract](architecture/runtime-contract.md)
 - [Design: Agent stack + HITL thin ingress](superpowers/specs/2026-10-24-agent-hitl-thin-ingress-design.md)
 - [Plan: Agent stack + HITL thin ingress](superpowers/plans/2026-10-24-agent-hitl-thin-ingress.md)
-- [TASK 4 LangGraph + LLM review pack](superpowers/reviews/2026-10-24-task4-langgraph-llm-review-pack.md) — awaiting ChatGPT review; no merge; no deploy
+- [TASK 4 LangGraph + local LLM review pack](superpowers/reviews/2026-10-24-task4-langgraph-llm-review-pack.md) — Task 4 not yet PASS; awaiting ChatGPT review; no merge; no deploy
 - [ADR-0001: authority separation](adr/0001-separate-proposal-from-authority.md)
 - [ADR-0002: fail closed](adr/0002-fail-closed-by-default.md)
 - [Engineering governance](governance/engineering-governance.md)

@@ -26,14 +26,17 @@ make demo
 ## 可选：Agent 接入（thin ingress）
 
 LangChain / LangGraph **示例**只能向 `POST /api/agent/propose` 提交非权威提案。
-**由 CAR 做决定**（策略、人工审核、模拟适配器）。默认是本地 JSONL 追踪；Langfuse
-仅在官方环境变量齐全时走当前 `get_client()` API（也可从 `CAR_LANGFUSE_*` 映射）。
-`langfuse` 不是 `.[demo]` 依赖。这是本地 / 集成设计证据，**不是**生产授权。
+**由 CAR 做决定**。主路径是 `--user-input`（不需要 scenario）。
+`CAR_AGENT_LLM=stub` 只给 CI / 离线，**不是** Agent 演示声明。
+`CAR_AGENT_LLM=local` 用 LangChain `ChatOpenAI` 结构化输出对接你已运行的
+OpenAI 兼容端点。`langfuse` 不是 `.[demo]` 依赖。这是本地 / 集成设计证据，
+**不是**生产授权。
 
 ```bash
 make demo
-make agent-example USER_INPUT='Please refund order_demo_001 for 100.00'
-make agent-example SCENARIO=safe_auto
+make agent-example USER_INPUT='Please refund order_demo_001 for 100.00'   # stub CI
+CAR_AGENT_LLM=local CAR_AGENT_LLM_MODEL=llama3.2 make agent-example \
+  USER_INPUT='帮我退一下订单 order_demo_001，金额 100 元。'
 ```
 
 核心 `make test` 不安装 `.[agent]`。一页纸：

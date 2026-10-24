@@ -10,7 +10,13 @@ ROOT = Path(__file__).resolve().parents[1]
 EXAMPLE_DIR = ROOT / "examples" / "agent_graph"
 sys.path.insert(0, str(EXAMPLE_DIR))
 
-from llm import ReservedAgentLlm, StubAgentLlm, get_agent_llm, resolve_agent_llm_mode
+from chat_llm import (
+    ChatCompatibleAgentLlm,
+    ProposalDraft,
+    resolve_chat_config,
+    structured_to_proposal,
+)
+from llm import StubAgentLlm, get_agent_llm, resolve_agent_llm_mode
 from stub_llm import (
     ALLOWED_HOOK_FIELDS,
     scenario_to_payload,
@@ -82,7 +88,7 @@ class AgentGraphStubTests(unittest.TestCase):
         self.assertTrue(set(proposal) <= ALLOWED_HOOK_FIELDS)
 
     def test_chinese_user_input_to_proposal_without_scenario(self) -> None:
-        payload = user_input_to_payload("请退款订单 order_demo_001，金额 100.00")
+        payload = user_input_to_payload("帮我退一下订单 order_demo_001，金额 100 元。")
         self.assertNotIn("scenario", payload)
         self.assertEqual(payload["proposal"]["requested_amount_minor"], 10000)
         self.assertEqual(
@@ -108,14 +114,112 @@ class AgentGraphStubTests(unittest.TestCase):
             else:
                 os.environ["CAR_AGENT_LLM"] = previous
 
-    def test_reserved_llm_modes_fail_closed(self) -> None:
+    def test_local_and_openai_modes_use_chat_provider(self) -> None:
         for mode in ("local", "openai"):
             provider = get_agent_llm({"CAR_AGENT_LLM": mode})
-            self.assertIsInstance(provider, ReservedAgentLlm)
+            self.assertIsInstance(provider, ChatCompatibleAgentLlm)
+            self.assertEqual(provider.name, mode)
+
+    def test_local_mode_requires_model(self) -> None:
+        provider = ChatCompatibleAgentLlm("local", {})
+        with self.assertRaises(ValueError) as ctx:
+            provider.draft_proposal("Please refund order_demo_001 for 100.00")
+        self.assertIn("missing_agent_llm_model", str(ctx.exception))
+
+    def test_openai_mode_requires_api_key(self) -> None:
+        provider = ChatCompatibleAgentLlm(
+            "openai", {"CAR_AGENT_LLM_MODEL": "demo-model"}
+        )
+        with self.assertRaises(ValueError) as ctx:
+            provider.draft_proposal("Please refund order_demo_001 for 100.00")
+        self.assertIn("missing_agent_llm_api_key", str(ctx.exception))
+
+    def test_local_defaults_loopback_openai_compatible_url(self) -> None:
+        config = resolve_chat_config("local", {"CAR_AGENT_LLM_MODEL": "demo-local"})
+        self.assertEqual(config["base_url"], "http://127.0.0.1:11434/v1")
+        self.assertEqual(config["model"], "demo-local")
+
+    def test_structured_output_schema_is_allowed_fields_only(self) -> None:
+        self.assertEqual(set(ProposalDraft.model_fields), set(ALLOWED_HOOK_FIELDS))
+
+    def test_structured_to_proposal_drops_protected_and_extras(self) -> None:
+        class FakeDraft:
+            def model_dump(self) -> dict:
+                return {
+                    "intent": "refund",
+                    "appid": "app_demo_001",
+                    "term_id": "term_demo_001",
+                    "original_order_no": "order_demo_001",
+                    "original_transaction_date": "2026-09-01",
+                    "requested_amount_minor": 10000,
+                    "merchant_email": "merchant-seed01@example.invalid",
+                    "principal_id": "forged",
+                    "adapter_result": "nope",
+                }
+
+        proposal = structured_to_proposal(FakeDraft())
+        self.assertEqual(proposal["intent"], "refund")
+        self.assertEqual(proposal["requested_amount_minor"], 10000)
+        self.assertNotIn("principal_id", proposal)
+        self.assertNotIn("adapter_result", proposal)
+        self.assertTrue(set(proposal) <= ALLOWED_HOOK_FIELDS)
+
+    def test_chat_provider_uses_langchain_structured_output(self) -> None:
+        from unittest.mock import MagicMock, patch
+
+        draft = ProposalDraft(
+            intent="refund",
+            appid="app_demo_001",
+            term_id="term_demo_001",
+            original_order_no="order_demo_001",
+            original_transaction_date="2026-09-01",
+            requested_amount_minor=10000,
+            merchant_email="merchant-seed01@example.invalid",
+        )
+        with patch("chat_llm.invoke_structured_proposal", return_value=draft) as mocked:
+            provider = ChatCompatibleAgentLlm(
+                "local", {"CAR_AGENT_LLM_MODEL": "demo-local"}
+            )
+            proposal = provider.draft_proposal(
+                "帮我退一下订单 order_demo_001，金额 100 元。"
+            )
+        mocked.assert_called_once()
+        self.assertEqual(proposal["original_order_no"], "order_demo_001")
+        self.assertNotIn("scenario", proposal)
+        self.assertTrue(set(proposal) <= ALLOWED_HOOK_FIELDS)
+
+    def test_chat_provider_fail_closed_without_fallback(self) -> None:
+        from unittest.mock import patch
+
+        with patch(
+            "chat_llm.invoke_structured_proposal",
+            side_effect=ConnectionError("refused"),
+        ):
+            provider = ChatCompatibleAgentLlm(
+                "local", {"CAR_AGENT_LLM_MODEL": "demo-local"}
+            )
             with self.assertRaises(ValueError) as ctx:
                 provider.draft_proposal("Please refund order_demo_001 for 100.00")
-            self.assertIn("reserved_llm_not_implemented", str(ctx.exception))
-            self.assertIn(mode, str(ctx.exception))
+        self.assertIn("agent_llm_unavailable", str(ctx.exception))
+
+    def test_chat_provider_optional_stub_fallback(self) -> None:
+        from unittest.mock import patch
+
+        with patch(
+            "chat_llm.invoke_structured_proposal",
+            side_effect=ConnectionError("refused"),
+        ):
+            provider = ChatCompatibleAgentLlm(
+                "local",
+                {
+                    "CAR_AGENT_LLM_MODEL": "demo-local",
+                    "CAR_AGENT_LLM_FALLBACK": "stub",
+                },
+            )
+            proposal = provider.draft_proposal(
+                "Please refund order_demo_001 for 100.00"
+            )
+        self.assertEqual(proposal["requested_amount_minor"], 10000)
 
     def test_unknown_llm_mode_fail_closed(self) -> None:
         with self.assertRaises(ValueError) as ctx:
@@ -141,7 +245,24 @@ class AgentGraphStubTests(unittest.TestCase):
         imported = _top_level_imports((EXAMPLE_DIR / "llm.py").read_text(encoding="utf-8"))
         self.assertNotIn("langgraph", imported)
         self.assertNotIn("httpx", imported)
+        self.assertNotIn("langchain_openai", imported)
         self.assertNotIn("openai", imported)
+
+    def test_chat_llm_source_uses_langchain_structured_output(self) -> None:
+        source = (EXAMPLE_DIR / "chat_llm.py").read_text(encoding="utf-8")
+        self.assertIn("from langchain_openai import ChatOpenAI", source)
+        self.assertIn("with_structured_output", source)
+        self.assertIn("def invoke_structured_proposal", source)
+        self.assertIn("ProposalDraft", source)
+        self.assertNotIn("mock_refund", source)
+        self.assertNotIn("/refund", source)
+
+    def test_chat_llm_module_does_not_import_langgraph_or_httpx(self) -> None:
+        imported = _top_level_imports(
+            (EXAMPLE_DIR / "chat_llm.py").read_text(encoding="utf-8")
+        )
+        self.assertNotIn("langgraph", imported)
+        self.assertNotIn("httpx", imported)
 
     def test_graph_source_only_posts_to_car_propose(self) -> None:
         graph = (EXAMPLE_DIR / "graph.py").read_text(encoding="utf-8")

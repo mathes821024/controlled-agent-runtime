@@ -1,11 +1,17 @@
-"""Run the stub graph against a live CAR demo.
+"""Run the example graph against a live CAR demo.
 
 Primary path (proposal-driven, no scenario)::
 
-    PYTHONPATH=examples .venv/bin/python -m agent_graph \\
+    CAR_AGENT_LLM=local CAR_AGENT_LLM_MODEL=llama3.2 \\
+      PYTHONPATH=examples .venv/bin/python -m agent_graph \\
+      --user-input "帮我退一下订单 order_demo_001，金额 100 元。"
+
+CI / offline stub (not the Agent demo claim)::
+
+    CAR_AGENT_LLM=stub PYTHONPATH=examples .venv/bin/python -m agent_graph \\
       --user-input "Please refund order_demo_001 for 100.00"
 
-Canned demo / CI::
+Canned scenario (CI regression only)::
 
     PYTHONPATH=examples .venv/bin/python -m agent_graph --scenario safe_auto
 """
@@ -16,15 +22,16 @@ import argparse
 import json
 import os
 
-DEFAULT_USER_INPUT = "Please refund order_demo_001 for 100.00"
+DEFAULT_USER_INPUT = "帮我退一下订单 order_demo_001，金额 100 元。"
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
-            "Stub LangGraph example: draft a structured proposal from "
-            "user_input (or a canned scenario) and POST it to "
-            "CAR /api/agent/propose. CAR decides. No adapter tools."
+            "LangGraph example: draft a structured proposal from "
+            "--user-input and POST it to CAR /api/agent/propose without a "
+            "scenario. CAR decides. No adapter tools. "
+            "CAR_AGENT_LLM=stub is CI/offline only; local/openai use LangChain."
         )
     )
     parser.add_argument(
@@ -35,7 +42,7 @@ def main() -> None:
     parser.add_argument(
         "--scenario",
         default=os.environ.get("SCENARIO"),
-        help="Optional demo/CI canned scenario (not required for the agent path)",
+        help="Optional demo/CI canned scenario (not the Agent main path)",
     )
     parser.add_argument(
         "--base-url",

@@ -1,6 +1,8 @@
-"""LangGraph stub: understand → draft_proposal → submit_to_car → done.
+"""LangGraph: understand → draft_proposal → submit_to_car → done.
 
-CAR decides. No side-effect tools. The only HTTP call is Ingress
+``draft_proposal`` uses ``get_agent_llm()``: stub for CI, or LangChain
+ChatOpenAI structured output when ``CAR_AGENT_LLM=local`` / ``openai``.
+CAR decides. No side-effect tools. The only graph HTTP call is Ingress
 ``POST {CAR_BASE_URL}/api/agent/propose``.
 """
 
@@ -45,7 +47,7 @@ def understand(state: AgentState) -> dict[str, Any]:
 
 
 def draft_proposal(state: AgentState) -> dict[str, Any]:
-    """Stub (or reserved) LLM → structured proposal. No tools."""
+    """LLM → structured proposal. No tools. CAR remains authority."""
     mode = resolve_agent_llm_mode()
     provider = get_agent_llm()
     proposal = provider.draft_proposal(

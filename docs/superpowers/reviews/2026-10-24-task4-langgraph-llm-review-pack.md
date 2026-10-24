@@ -1,30 +1,65 @@
-# TASK 4 LANGGRAPH + LLM REVIEW PACK
+# TASK 4 LANGGRAPH + LOCAL LLM REVIEW PACK
 
 Local / integration design evidence only. Not a Gate PASS. Not production
-authorization. ChatGPT review blockers from 2026-10-24 are implemented here.
+authorization.
+
+**TASK 4 is not claimed PASS.** This pack is for ChatGPT re-review after
+implementing a real LangChain local/openai draft path. Prior “Tasks 1–5 done”
+language was too strong for the LLM claim.
+
 **Awaiting ChatGPT review. Do not merge. Do not deploy.**
+
+## Honest capability claims
+
+| Mode | What it actually is | What you may say |
+|---|---|---|
+| `CAR_AGENT_LLM=stub` (default) | Deterministic Python mapper (`stub_llm.user_input_to_proposal`) | CI / offline fallback only. **Not** an Agent demo. |
+| `CAR_AGENT_LLM=local` | LangChain `ChatOpenAI` against an OpenAI-compatible **local** base URL + `with_structured_output(ProposalDraft)` | Agent **draft** path. Still not authority. Needs a running endpoint. This repo does not pull weights. |
+| `CAR_AGENT_LLM=openai` | Same client, default base `https://api.openai.com/v1`, API key required | Same draft-only claim. No model lock-in. |
+
+CAR remains HITL / policy / execution authority. The graph cannot refund.
+
+## How to run stub CI vs local OpenAI-compatible demo
+
+Stub / CI (no network to a model):
+
+```bash
+make test                                 # .[demo] only; no [agent] required
+make demo
+CAR_AGENT_LLM=stub make agent-example \
+  USER_INPUT='Please refund order_demo_001 for 100.00'
+```
+
+Local Agent draft (you already run an OpenAI-compatible server):
+
+```bash
+make demo
+export CAR_AGENT_LLM=local
+export CAR_AGENT_LLM_BASE_URL=http://127.0.0.1:11434/v1   # documented default
+export CAR_AGENT_LLM_MODEL=llama3.2                       # example only
+make agent-example USER_INPUT='帮我退一下订单 order_demo_001，金额 100 元。'
+```
+
+`CAR_AGENT_LLM_FALLBACK=stub` is optional and **opt-in**. Default local mode
+surfaces connection / JSON errors so a demo cannot silently fake an LLM.
 
 ## 1. LangGraph State
 
-`examples/agent_graph/graph.py` `AgentState` (TypedDict, all optional keys):
+`examples/agent_graph/graph.py` `AgentState`:
 
 | Field | Required by contract | Role |
 |---|---|---|
-| `user_input` | yes | Natural-language request. Tracing / draft input only. Never authority. |
+| `user_input` | yes | Natural-language request. Tracing / draft input only. |
 | `proposal` | yes | Structured untrusted overlay (`ALLOWED_HOOK_FIELDS`). |
-| `car_response` | yes | Ingress JSON as returned by CAR. |
+| `car_response` | yes | Ingress JSON from CAR. |
 | `decision` | yes | Copied from `car_response.decision` in `done`. |
 | `trace_id` | yes | Copied from `car_response.car_trace_id` in `done`. |
-| `scenario` | optional | Demo / CI canned path only. Not invented on the agent main path. |
-| `client_trace_id` | optional | Forwarded to Ingress. |
-| `source` | optional | Default `langgraph_example`. |
-| `car_status_code` | optional | HTTP status from Ingress. |
-| `llm_mode` | optional | `stub` (default) or reserved mode name. |
+| `scenario` | optional | Canned CI only. Not invented on the agent main path. |
 
 Primary invoke (no scenario):
 
 ```python
-{"user_input": "Please refund order_demo_001 for 100.00", "source": "langgraph_example"}
+{"user_input": "帮我退一下订单 order_demo_001，金额 100 元。", "source": "langgraph_example"}
 ```
 
 ## 2. Nodes / edges
@@ -33,36 +68,29 @@ Primary invoke (no scenario):
 understand → draft_proposal → submit_to_car → done → END
 ```
 
-| Node | What it does | What it must not do |
-|---|---|---|
-| `understand` | Strip `user_input`; keep `scenario` only if the caller supplied one. | Invent a scenario name as authority. |
-| `draft_proposal` | `get_agent_llm().draft_proposal(user_input, scenario)` → structured proposal. | Call adapters, download weights, bind tools. |
-| `submit_to_car` | `httpx.post({CAR_BASE_URL}/api/agent/propose, json=payload)`. | Call `/refund`, mock adapters, or any write API. |
-| `done` | Copy `decision` and `trace_id` from CAR's response. | Re-decide policy / HITL. |
-
-When `user_input` is present and `scenario` is omitted, the POST body has
-`user_input` + `proposal` and **no** `scenario`. When `--scenario` is passed
-(demo / CI), the canned path is unchanged.
+`draft_proposal` calls `get_agent_llm().draft_proposal(user_input, scenario)`.
+In local/openai mode, `scenario` is ignored as authority.
 
 ## 3. LLM provider abstraction
 
-`examples/agent_graph/llm.py`:
+`examples/agent_graph/llm.py` + `examples/agent_graph/chat_llm.py`
 
-| `CAR_AGENT_LLM` | Provider | Behavior now |
+| `CAR_AGENT_LLM` | Class | Behavior |
 |---|---|---|
-| `stub` (default) | `StubAgentLlm` | Deterministic ZH/EN or canned-scenario map. No HTTP. |
-| `local` | `ReservedAgentLlm` | Fail closed: `reserved_llm_not_implemented:local`. |
-| `openai` | `ReservedAgentLlm` | Fail closed: `reserved_llm_not_implemented:openai`. |
-| anything else | — | Fail closed: `unknown_agent_llm:{name}`. |
+| `stub` | `StubAgentLlm` | Deterministic mapper. |
+| `local` | `ChatCompatibleAgentLlm` | LangChain ChatOpenAI, default base `http://127.0.0.1:11434/v1`. |
+| `openai` | `ChatCompatibleAgentLlm` | Same client, default base `https://api.openai.com/v1`, key required. |
 
-Architecture reserved for a later OpenAI-compatible **local** endpoint
-(`base_url` + API key, caller-chosen model). No model name is locked in
-this repo. Reserved modes do not download weights and do not stub-silently
-pretend to be live.
+Env (no model lock-in):
+
+- `CAR_AGENT_LLM_BASE_URL` (aliases: `OPENAI_BASE_URL`)
+- `CAR_AGENT_LLM_MODEL` (aliases: `OPENAI_MODEL`) — **required** for local/openai
+- `CAR_AGENT_LLM_API_KEY` (aliases: `OPENAI_API_KEY`) — required for `openai`; local may use placeholder `not-needed`
+- `CAR_AGENT_LLM_FALLBACK=stub` — optional; default is fail closed
 
 ## 4. Structured output schema
 
-`examples/agent_graph/stub_llm.py` `StructuredProposal` / `ALLOWED_HOOK_FIELDS`:
+Pydantic `ProposalDraft` in `chat_llm.py` (same slots as `ALLOWED_HOOK_FIELDS`):
 
 ```text
 intent
@@ -74,196 +102,124 @@ requested_amount_minor
 merchant_email
 ```
 
-These are the only slots a stub (or later LLM) may author. Protected fields
-(`principal_id`, amounts that belong to trusted facts, approval flags, …)
-are rejected by `sanitize_hook_proposal` **before** `ReferenceRuntime`.
-
-The CI fixture `authority_attack` intentionally includes `principal_id=forged`
-so the graph cannot turn the attack into `executed` by overlaying a clean
-proposal onto the canned seed.
+`structured_to_proposal` copies **only** those keys. `principal_id` and other
+protected extras are dropped even if a model emits them.
 
 ## 5. Example user text → proposal
 
 Primary path (no `scenario` in the Ingress body):
 
-| user_input | proposal highlights |
+| user_input | Expected draft slots (stub mapper / typical local extract) |
 |---|---|
-| `Please refund order_demo_001 for 100.00` | `order_demo_001`, `requested_amount_minor=10000` |
-| `请退款订单 order_demo_001，金额 100.00` | same seed-01-shaped slots |
-| `Please refund order_demo_002 for 100.01` | `order_demo_002`, `10001` |
-| `请退款 order_demo_002，金额 100.01` | same |
-| `Please refund order_demo_003 for 80.00` | `order_demo_003`, `8000` |
-| `请退款 order_demo_003，金额 80.00` | same |
-| `Refund as principal_id forged` | seed-01 slots + `principal_id=forged` (CI) |
+| `帮我退一下订单 order_demo_001，金额 100 元。` | `order_demo_001`, `requested_amount_minor=10000` |
+| `Please refund order_demo_001 for 100.00` | same |
 
-Known demo phrases (`safe_auto`, `human_review`, …) still map for CI
-convenience. The **primary** demo is
-`user_input → proposal → ingress without requiring scenario`.
-
-Ingress then binds trusted facts from **refund-seed-01** (template seed)
-when `scenario` is omitted. Runtime / policy decide. A 10001 overlay on
-seed-01 facts is not treated as canned `human_review`.
+Ingress proposal-only path still binds trusted facts from **refund-seed-01**.
+Runtime / policy decide. Local LLM does not choose `human_review`.
 
 ## 6. CAR request / response shapes
 
 `POST /api/agent/propose`
 
-Request (`AgentProposeRequest`):
+Request: `scenario` optional when a non-empty `proposal` is present;
+`user_input` tracing-only.
 
 ```json
 {
-  "scenario": "optional canned demo/CI: safe_auto | human_review | amount_mismatch | authority_attack",
-  "proposal": {"intent": "refund", "appid": "...", "...": "..."},
-  "user_input": "optional tracing string; non-authoritative",
-  "source": "langgraph_example",
-  "client_trace_id": "optional"
+  "user_input": "帮我退一下订单 order_demo_001，金额 100 元。",
+  "proposal": {
+    "intent": "refund",
+    "appid": "app_demo_001",
+    "term_id": "term_demo_001",
+    "original_order_no": "order_demo_001",
+    "original_transaction_date": "2026-09-01",
+    "requested_amount_minor": 10000,
+    "merchant_email": "merchant-seed01@example.invalid"
+  },
+  "source": "langgraph_example"
 }
 ```
 
-Rules:
-
-- `scenario` optional when a **non-empty** `proposal` is present.
-- Proposal-only: template seed = refund-seed-01 trusted facts + sanitized overlay.
-  Serialized `scenario` is `null` (no fake name).
-- Scenario-only: today's four canned behaviors unchanged.
-- Neither (or empty `proposal` without scenario): `missing_scenario_or_proposal`, HTTP 400.
-- Unknown canned scenario: `unknown_scenario`, HTTP 400, no Runtime.
-- Protected / unknown proposal fields: fail closed **before** Runtime, HTTP 409.
-- `user_input` is recorded on the JSONL start metadata only.
-
-Response (handler / 200 Runtime decisions):
-
-```json
-{
-  "scenario": "safe_auto or null",
-  "decision": "executed | needs_review | clarify | denied",
-  "reason_code": "...",
-  "outcome": "executed | needs_review | denied | failed_closed | ...",
-  "adapter_call_count": 0,
-  "evidence_summary": {"summary": "...", "reason_code": "...", "event_names": []},
-  "hitl_url": "/ or null",
-  "car_trace_id": "uuid"
-}
-```
-
-`decision` mapping: `executed`/`idempotent_replay` → `executed`;
-`needs_review` → `needs_review`; `needs_input` → `clarify`;
-`denied`/`failed_closed` → `denied`.
+Response `decision`: `executed | needs_review | clarify | denied`.
+Proposal-only serialized `scenario` is JSON `null` (no fake name).
 
 ## 7. Tool list + proof no write tools
 
 Graph tools: **none**.
 
-Proof (core tests, no `[agent]` import of LangGraph):
+Proof:
 
 - `tests/test_agent_graph_stub.py::test_graph_source_only_posts_to_car_propose`
-  asserts `graph.py` contains `httpx.post` + `/api/agent/propose` and does
-  **not** contain `mock_refund`, `/refund`, `real_adapter`, `bind_tools`,
-  `ToolNode`, or `@tool`.
-- `test_stub_module_does_not_import_langgraph_or_http` and
-  `test_llm_module_does_not_import_langgraph_or_http`.
+  — `graph.py` has `httpx.post` + `/api/agent/propose` and does not contain
+  `mock_refund`, `/refund`, `real_adapter`, `bind_tools`, `ToolNode`, `@tool`.
+- `test_chat_llm_source_uses_langchain_structured_output` — `chat_llm.py`
+  has no refund/adapter calls.
 - Write / refund / actuator paths stay behind CAR adapters only.
 
 ## 8. Langfuse integration method / version
 
-Current SDK path only. Legacy `Langfuse(...); client.trace(...); client.span(...)`
-is removed from `src/controlled_agent_runtime/observability.py`.
+Unchanged from the previous blocker (keep):
 
-When env is complete:
-
-1. Prefer official names: `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`,
-   `LANGFUSE_BASE_URL`.
-2. Map `CAR_LANGFUSE_PUBLIC_KEY` / `CAR_LANGFUSE_SECRET_KEY` /
-   `CAR_LANGFUSE_BASE_URL` or legacy `CAR_LANGFUSE_HOST` if official values
-   are empty. Official names win when both are set. Mapped values are
-   exported under the official names before `get_client()` so the SDK
-   reads the documented env.
-3. `from langfuse import get_client`
-4. `get_client().start_as_current_observation(as_type="span", name=...)`
-   as a context manager per JSONL event.
-5. `flush()` on `TraceHandle.end`.
-
-Target: current Langfuse Python major that exposes `get_client`
-(v3+ / v4 OpenTelemetry). **`langfuse` is not a `.[demo]` dependency** and
-is not pinned in `pyproject.toml`. Incomplete env, missing package, or any
-exception → JSONL-only, never raised into CAR.
-
-Langfuse is an observability sink only. It is not Policy, Approval, or
-Execution. No LangSmith product binding.
+- `from langfuse import get_client`
+- `get_client().start_as_current_observation(as_type="span", name=...)`
+- `flush()` on end
+- Official env `LANGFUSE_*`; map `CAR_LANGFUSE_*`
+- Target Langfuse Python v3+ / v4; **not** a `.[demo]` dependency
+- JSONL is the guaranteed sink
 
 ## 9. Tests run + results
 
 ```text
 make check   # Gate 0 repository contracts: OK
-make test    # installs .[demo] only; 104 tests, 0 failures, ~0.37s
+make test    # .[demo] only — must stay green without a live LLM
 ```
 
-`make test` does **not** install `.[agent]` and does not import LangGraph
-from the core suite. `[agent]` remains optional.
+Core suite does not require `.[agent]` or a running chat endpoint. Local
+provider tests mock `invoke_structured_proposal` (fail-closed vs optional
+stub fallback; structured schema; protected-field drop).
 
-New / updated coverage:
+LangChain cite for reviewers — **this is the real call**:
 
-- Observability: incomplete official or CAR env never imports `langfuse`;
-  source forbids legacy APIs; mocked complete env uses
-  `start_as_current_observation(as_type="span")` + `flush()`; Langfuse
-  exceptions stay JSONL-only.
-- Ingress: proposal-only without scenario (handler + API); neither fails
-  closed; canned four scenarios unchanged; protected fields still block
-  Runtime (with or without scenario).
-- Graph stub: ZH/EN `user_input` → proposal without `scenario`; reserved
-  `local`/`openai` fail closed; no write-tool strings; required State
-  fields and nodes present in source.
-
-Optional local compile (not required for `make test`): with a previously
-installed `.[agent]` extra, `build_graph()` still compiles.
+```text
+examples/agent_graph/chat_llm.py :: invoke_structured_proposal
+  from langchain_openai import ChatOpenAI
+  llm = ChatOpenAI(model=..., base_url=..., api_key=..., temperature=0)
+  structured = llm.with_structured_output(ProposalDraft)
+  return structured.invoke([SystemMessage(...), HumanMessage(user_input)])
+```
 
 ## 10. Dependency versions (pyproject extras)
-
-From `pyproject.toml` (unchanged extras; `langfuse` not added):
 
 | Extra | Pins |
 |---|---|
 | (core) | none |
 | `.[demo]` | `fastapi>=0.115`, `uvicorn[standard]>=0.30`, `httpx>=0.27` |
-| `.[agent]` | `httpx>=0.27`, `langchain-core>=0.3`, `langgraph>=0.2` |
+| `.[agent]` | `httpx>=0.27`, `langchain-core>=0.3`, `langchain-openai>=0.2`, `langgraph>=0.2` |
 
-Resolved in this workspace when present (informational, not a lockfile):
-
-| Package | Version |
-|---|---|
-| fastapi | 0.162.0 |
-| uvicorn | 0.54.0 |
-| httpx | 0.28.1 |
-| pydantic | 2.14.1 |
-| langchain-core | 1.7.0 (only if `.[agent]` was installed earlier) |
-| langgraph | 1.2.17 (only if `.[agent]` was installed earlier) |
-| langfuse | **not installed**; optional, target v3+/v4 `get_client` API |
+`langfuse` is **not** added. `langchain-openai` is **[agent] only**.
 
 `langchain-core` may transitively install `langsmith`. Unused. No LangSmith
 product binding.
 
 ## 11. Open questions
 
-1. Should reserved `CAR_AGENT_LLM=local` later take
-   `OPENAI_BASE_URL` / `OPENAI_API_KEY` (OpenAI-compatible) without a
-   locked model, or a CAR-prefixed pair (`CAR_AGENT_LLM_BASE_URL`)?
-2. RAG remains out of scope for the refund demo. Knowledge/SOP may RAG
-   later; identity / order / amount / state must stay authoritative
-   tools/DB — never RAG for business facts.
-3. 409 vs 400 for protected proposal fields is still a review choice;
-   current mapping keeps 409 for pre-runtime protected/unknown fields.
-4. Should proposal-only responses omit the `scenario` key entirely
-   instead of returning JSON `null`? Current contract uses `null` so
-   clients can see that no canned scenario was authoritative.
-5. Live Langfuse emit is still untested against a real project (JSONL is
-   the guaranteed sink; remote emit is mocked only).
+1. Windows Mini / other OpenAI-compatible desktop endpoints: same
+   `CAR_AGENT_LLM=local` + `CAR_AGENT_LLM_BASE_URL` / `CAR_AGENT_LLM_MODEL`,
+   or a later named profile?
+2. Should a reviewed gate pin a default local model name, or keep “model
+   required, examples only”?
+3. RAG remains out of scope for the refund demo. Identity / order / amount
+   / state stay authoritative tools/DB — never RAG for business facts.
+4. Live local-endpoint smoke was **not** run in this cloud workspace (no
+   Ollama / no weight download). Code path is implemented and unit-mocked.
+5. 409 vs 400 for protected proposal fields remains a review choice.
 
 ## 12. Explicit stop
 
-**Awaiting ChatGPT review of this Task 4 LangGraph + LLM Review Pack.**
+**Awaiting ChatGPT review of this Task 4 LangGraph + local LLM Review Pack.**
 
+- Task 4 is **not** claimed PASS.
 - Do **not** merge this PR.
-- Do **not** deploy to any host (including `51.81.146.19` or the existing
-  demo VPS).
-- Do **not** start unrelated work.
+- Do **not** deploy to any host.
+- Do **not** start Task 5+ feature work beyond docs already present.
 - Operator VPS deploy remains a follow-up after a reviewed approval.
