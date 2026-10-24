@@ -48,7 +48,7 @@ def agent_propose_status(payload: dict[str, Any]) -> int:
     stay HTTP 200 like ``POST /api/demo/run``.
     """
     reason = str(payload.get("reason_code") or "")
-    if reason == "unknown_scenario":
+    if reason in {"unknown_scenario", "missing_scenario_or_proposal"}:
         return 400
     summary = payload.get("evidence_summary") or {}
     pre_runtime = isinstance(summary, dict) and summary.get("summary") == (
@@ -64,7 +64,7 @@ def agent_propose_status(payload: dict[str, Any]) -> int:
     return 200
 
 
-def serialize_result(scenario: str, result: Any) -> dict[str, Any]:
+def serialize_result(scenario: str | None, result: Any) -> dict[str, Any]:
     decision = None
     if result.decision is not None:
         decision = {

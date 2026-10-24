@@ -1,7 +1,16 @@
 """Agent propose handler: untrusted proposal in, ReferenceRuntime decides.
 
-This module is route-free. FastAPI wiring belongs in ``app.py`` (later task).
+This module is route-free. FastAPI wiring belongs in ``app.py``.
 CAR remains HITL / policy / execution authority.
+
+Two ingress modes:
+
+- Demo / CI: optional canned ``scenario`` (four values unchanged).
+- Agent main path: non-empty ``proposal`` without ``scenario``. Trusted facts
+  come from the refund-seed-01 template; Runtime / policy decide. No fake
+  scenario name is invented as authority.
+
+``user_input`` is tracing-only and never authoritative.
 """
 
 from __future__ import annotations
@@ -12,6 +21,7 @@ from typing import Any, Optional
 from pydantic import BaseModel, Field
 
 from controlled_agent_runtime.demo.scenarios import (
+    build_proposal_template_seed,
     build_seed_for_scenario,
     normalize_scenario,
 )
@@ -26,10 +36,11 @@ HITL_PATH = "/"
 
 
 class AgentProposeRequest(BaseModel):
-    """Ingress body. ``proposal`` is non-authoritative and optional."""
+    """Ingress body. ``proposal`` and ``user_input`` are non-authoritative."""
 
-    scenario: str = Field(..., min_length=1, max_length=64)
+    scenario: Optional[str] = Field(default=None, max_length=64)
     proposal: Optional[dict[str, Any]] = None
+    user_input: Optional[str] = Field(default=None, max_length=4096)
     source: Optional[str] = Field(default=None, max_length=128)
     client_trace_id: Optional[str] = Field(default=None, max_length=128)
 
@@ -47,10 +58,19 @@ def map_ingress_decision(outcome: str) -> str:
     return "denied"
 
 
+def _scenario_name(raw: str | None) -> str | None:
+    text = str(raw or "").strip()
+    return text or None
+
+
+def _nonempty_proposal(proposal: Any) -> bool:
+    return isinstance(proposal, dict) and len(proposal) > 0
+
+
 def _fail_closed(
     handle: Any,
     *,
-    scenario: str,
+    scenario: str | None,
     reason_code: str,
 ) -> dict[str, Any]:
     handle.span(
@@ -78,25 +98,41 @@ def _fail_closed(
 def handle_agent_propose(body: AgentProposeRequest) -> dict[str, Any]:
     """Sanitize an optional proposal, then let ReferenceRuntime decide.
 
-    Unknown scenario or ``ProposalHookError`` fail closed without calling the
-    runtime (``adapter_call_count=0``). Returns a dict the route can wrap.
+    Unknown scenario, missing inputs, or ``ProposalHookError`` fail closed
+    without calling the runtime (``adapter_call_count=0``).
     """
     from controlled_agent_runtime.demo.app import serialize_result
 
+    scenario_raw = _scenario_name(body.scenario)
+    proposal_present = _nonempty_proposal(body.proposal)
     handle = start_trace(
         "car.propose",
         client_trace_id=body.client_trace_id,
-        metadata={"source": body.source, "scenario": body.scenario},
+        metadata={
+            "source": body.source,
+            "scenario": scenario_raw,
+            "user_input": body.user_input,
+            "proposal_present": proposal_present,
+        },
     )
     try:
-        try:
-            canonical = normalize_scenario(body.scenario)
-        except KeyError:
+        if scenario_raw is None and not proposal_present:
             return _fail_closed(
                 handle,
-                scenario=body.scenario,
-                reason_code="unknown_scenario",
+                scenario=None,
+                reason_code="missing_scenario_or_proposal",
             )
+
+        canonical: str | None = None
+        if scenario_raw is not None:
+            try:
+                canonical = normalize_scenario(scenario_raw)
+            except KeyError:
+                return _fail_closed(
+                    handle,
+                    scenario=scenario_raw,
+                    reason_code="unknown_scenario",
+                )
 
         sanitized: dict[str, Any] | None = None
         if body.proposal is not None:
@@ -114,12 +150,16 @@ def handle_agent_propose(body: AgentProposeRequest) -> dict[str, Any]:
             scenario=canonical,
             source=body.source,
             proposal_present=body.proposal is not None,
+            user_input_present=bool(body.user_input),
         )
 
-        seed = build_seed_for_scenario(canonical)
-        if sanitized is not None:
-            seed = copy.deepcopy(seed)
-            seed["proposal"] = sanitized
+        if canonical is not None:
+            seed = build_seed_for_scenario(canonical)
+            if sanitized is not None:
+                seed = copy.deepcopy(seed)
+                seed["proposal"] = sanitized
+        else:
+            seed = build_proposal_template_seed(sanitized or {})
 
         try:
             result = ReferenceRuntime().run_seed(seed)
@@ -158,6 +198,6 @@ def handle_agent_propose(body: AgentProposeRequest) -> dict[str, Any]:
     except Exception as exc:  # noqa: BLE001
         return _fail_closed(
             handle,
-            scenario=body.scenario,
+            scenario=scenario_raw,
             reason_code=f"ingress_exception:{type(exc).__name__}",
         )

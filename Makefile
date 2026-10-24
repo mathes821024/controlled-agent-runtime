@@ -5,6 +5,7 @@ VENV_PYTHON := .venv/bin/python
 VENV_PIP := .venv/bin/pip
 CAR_BASE_URL ?= http://127.0.0.1:8000
 SCENARIO ?= safe_auto
+USER_INPUT ?=
 
 help:
 	@echo "make check          contract validation (no extra deps, no network)"
@@ -31,5 +32,9 @@ demo: demo-install
 agent-example:
 	@test -x $(VENV_PYTHON) || $(PYTHON) -m venv .venv
 	$(VENV_PIP) install -e ".[demo,agent]"
-	CAR_BASE_URL=$(CAR_BASE_URL) PYTHONPATH=examples $(VENV_PYTHON) -m agent_graph --scenario $(SCENARIO)
+	@if [ -n "$(USER_INPUT)" ]; then \
+		CAR_BASE_URL=$(CAR_BASE_URL) PYTHONPATH=examples $(VENV_PYTHON) -m agent_graph --user-input "$(USER_INPUT)"; \
+	else \
+		CAR_BASE_URL=$(CAR_BASE_URL) PYTHONPATH=examples $(VENV_PYTHON) -m agent_graph --scenario $(SCENARIO); \
+	fi
 

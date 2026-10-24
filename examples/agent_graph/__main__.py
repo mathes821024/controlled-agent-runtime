@@ -1,5 +1,12 @@
 """Run the stub graph against a live CAR demo.
 
+Primary path (proposal-driven, no scenario)::
+
+    PYTHONPATH=examples .venv/bin/python -m agent_graph \\
+      --user-input "Please refund order_demo_001 for 100.00"
+
+Canned demo / CI::
+
     PYTHONPATH=examples .venv/bin/python -m agent_graph --scenario safe_auto
 """
 
@@ -9,18 +16,26 @@ import argparse
 import json
 import os
 
+DEFAULT_USER_INPUT = "Please refund order_demo_001 for 100.00"
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
-            "Stub LangGraph example: draft a canned proposal and POST it to "
+            "Stub LangGraph example: draft a structured proposal from "
+            "user_input (or a canned scenario) and POST it to "
             "CAR /api/agent/propose. CAR decides. No adapter tools."
         )
     )
     parser.add_argument(
+        "--user-input",
+        default=os.environ.get("CAR_USER_INPUT"),
+        help="Natural-language request (primary agent path; no scenario required)",
+    )
+    parser.add_argument(
         "--scenario",
-        default=os.environ.get("SCENARIO", "safe_auto"),
-        help="safe_auto | human_review | amount_mismatch | authority_attack",
+        default=os.environ.get("SCENARIO"),
+        help="Optional demo/CI canned scenario (not required for the agent path)",
     )
     parser.add_argument(
         "--base-url",
@@ -42,11 +57,17 @@ def main() -> None:
             "Agent extras missing. Run: .venv/bin/pip install -e '.[demo,agent]'"
         ) from exc
 
+    user_input = (args.user_input or "").strip()
+    scenario = (args.scenario or "").strip() or None
+    if not user_input and not scenario:
+        user_input = DEFAULT_USER_INPUT
+
     try:
         app = build_graph()
         result = app.invoke(
             {
-                "scenario": args.scenario,
+                "user_input": user_input,
+                "scenario": scenario,
                 "client_trace_id": args.client_trace_id,
                 "source": "langgraph_example",
             }

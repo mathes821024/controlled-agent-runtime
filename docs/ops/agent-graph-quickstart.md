@@ -8,9 +8,12 @@ not a Gate PASS.
 ## What you get
 
 - Optional extra `.[agent]` (`httpx`, `langchain-core`, `langgraph`)
-- Stub maps four canned scenarios → Ingress JSON (no API key, no weight download)
+- Default `CAR_AGENT_LLM=stub` maps example Chinese/English `user_input` → structured proposal (no API key, no weight download)
+- Primary path: `user_input` → proposal → Ingress (no canned `scenario` required)
+- Four canned `scenario` values remain for demo / CI regression
 - One HTTP hop: `POST {CAR_BASE_URL}/api/agent/propose`
-- JSONL traces by default (`CAR_TRACE_JSONL` or `var/car-traces.jsonl`); Langfuse-shaped events if Langfuse env is complete
+- JSONL traces by default (`CAR_TRACE_JSONL` or `var/car-traces.jsonl`); optional Langfuse via current `get_client()` API when official env is complete (`LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` / `LANGFUSE_BASE_URL`, or mapped `CAR_LANGFUSE_*`)
+- `langfuse` is optional and is **not** part of `.[demo]`
 - Core `make test` / `make demo` stay green **without** `[agent]`
 
 ## What you do not get
@@ -19,18 +22,19 @@ not a Gate PASS.
 - No LangGraph `interrupt` as authoritative HITL
 - No real payment / refund / industrial adapters
 - No permission to execute real-world side effects
-- OpenAI is **not** required; `CAR_AGENT_LLM=openai` is reserved and v1 still uses the stub
+- OpenAI is **not** required; `CAR_AGENT_LLM=local` / `openai` are reserved and fail closed until an OpenAI-compatible local endpoint is implemented (no model lock-in)
 
 ## Laptop smoke
 
 ```bash
 make demo                                 # terminal 1 — 127.0.0.1:8000
-make agent-example SCENARIO=safe_auto     # terminal 2
+make agent-example USER_INPUT='Please refund order_demo_001 for 100.00'
+make agent-example SCENARIO=safe_auto     # canned demo / CI
 ```
 
-Expected JSON includes `"decision": "executed"` for `safe_auto`. Other canned
-scenarios: `human_review` → `needs_review`; `amount_mismatch` / `authority_attack`
-→ `denied`.
+Expected JSON includes `"decision": "executed"` for the seed-01-shaped proposal
+or canned `safe_auto`. Other canned scenarios: `human_review` → `needs_review`;
+`amount_mismatch` / `authority_attack` → `denied`.
 
 Default origin is `http://127.0.0.1:8000`. Layout and flags:
 [`examples/agent_graph/README.md`](../../examples/agent_graph/README.md).
@@ -51,7 +55,7 @@ On the box (no public NIC):
 ```bash
 curl -sS http://127.0.0.1:8000/api/agent/propose \
   -H 'content-type: application/json' \
-  -d '{"scenario":"safe_auto","source":"langgraph_example"}'
+  -d '{"user_input":"Please refund order_demo_001 for 100.00","proposal":{"intent":"refund","appid":"app_demo_001","term_id":"term_demo_001","original_order_no":"order_demo_001","original_transaction_date":"2026-09-01","requested_amount_minor":10000,"merchant_email":"merchant-seed01@example.invalid"},"source":"langgraph_example"}'
 ```
 
 From outside, use the authenticated `/hitl/` prefix (same basic-auth /

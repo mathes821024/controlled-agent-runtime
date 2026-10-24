@@ -125,6 +125,17 @@ def build_seed_for_scenario(scenario: str) -> dict[str, Any]:
     raise KeyError(scenario)
 
 
+def build_proposal_template_seed(sanitized_proposal: dict[str, Any]) -> dict[str, Any]:
+    """Trusted facts from refund-seed-01 plus an untrusted proposal overlay.
+
+    Used when Ingress receives a non-empty proposal and no canned scenario.
+    Does not invent a scenario name as authority. Runtime / policy decide.
+    """
+    seed = copy.deepcopy(_load_seed("refund-seed-01.json"))
+    seed["proposal"] = dict(sanitized_proposal)
+    return seed
+
+
 def station_for_event(name: str, fallback: str = "adapter") -> str:
     return EVENT_STATION.get(name, fallback)
 

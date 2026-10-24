@@ -91,11 +91,15 @@ never pulls weights.
 
 A small LangChain / LangGraph **example** can submit a non-authoritative
 proposal to `POST /api/agent/propose`. **CAR decides** (policy, HITL, mock
-adapter). Traces are Langfuse-shaped JSONL by default. This is local /
-integration evidence, **not** production.
+adapter). Traces are JSONL by default. Optional Langfuse uses the current
+`get_client()` / `start_as_current_observation` API when
+`LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, and `LANGFUSE_BASE_URL` are
+set (or mapped from `CAR_LANGFUSE_*`). `langfuse` is not a `.[demo]`
+dependency. This is local / integration evidence, **not** production.
 
 ```bash
 make demo
+make agent-example USER_INPUT='Please refund order_demo_001 for 100.00'
 make agent-example SCENARIO=safe_auto
 ```
 
