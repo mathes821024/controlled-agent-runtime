@@ -10,6 +10,10 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from controlled_agent_runtime.demo.agent_ingress import (
+    AgentProposeRequest,
+    handle_agent_propose,
+)
 from controlled_agent_runtime.demo.scenarios import (
     OUTCOME_UI,
     build_seed_for_scenario,
@@ -34,6 +38,30 @@ class RunRequest(BaseModel):
 
 class ProposeRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=2000)
+
+
+def agent_propose_status(payload: dict[str, Any]) -> int:
+    """Map handler fail-closed dicts to HTTP status, matching demo-run shapes.
+
+    Pre-runtime rejects (unknown scenario / sanitized protected fields) are
+    400/409. Runtime decisions — including canned ``authority_attack`` —
+    stay HTTP 200 like ``POST /api/demo/run``.
+    """
+    reason = str(payload.get("reason_code") or "")
+    if reason == "unknown_scenario":
+        return 400
+    summary = payload.get("evidence_summary") or {}
+    pre_runtime = isinstance(summary, dict) and summary.get("summary") == (
+        "fail closed before runtime"
+    )
+    if pre_runtime and (
+        reason.startswith("proposal_contains_protected")
+        or reason.startswith("proposal_contains_unknown")
+    ):
+        return 409
+    if reason.startswith("runtime_exception") or reason.startswith("ingress_exception"):
+        return 500
+    return 200
 
 
 def serialize_result(scenario: str, result: Any) -> dict[str, Any]:
@@ -152,6 +180,14 @@ def create_app() -> FastAPI:
                     "error": type(exc).__name__,
                 },
             )
+
+    @app.post("/api/agent/propose")
+    def agent_propose(body: AgentProposeRequest) -> Any:
+        payload = handle_agent_propose(body)
+        status = agent_propose_status(payload)
+        if status == 200:
+            return payload
+        return JSONResponse(status_code=status, content=payload)
 
     @app.get("/")
     def index() -> FileResponse:

@@ -11,10 +11,16 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+try:
+    from fastapi.testclient import TestClient
+except ImportError:  # pragma: no cover
+    TestClient = None  # type: ignore
+
 from controlled_agent_runtime.demo.agent_ingress import (
     AgentProposeRequest,
     handle_agent_propose,
 )
+from controlled_agent_runtime.demo.app import create_app
 
 
 class AgentIngressHandlerTests(unittest.TestCase):
@@ -137,5 +143,89 @@ class AgentIngressHandlerTests(unittest.TestCase):
             self.assertEqual(records[0]["car_trace_id"], out["car_trace_id"])
 
 
+@unittest.skipIf(TestClient is None, "fastapi demo extras not installed")
+class AgentIngressApiTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.client = TestClient(create_app())
+
+    def test_human_review_via_api(self) -> None:
+        response = self.client.post(
+            "/api/agent/propose",
+            json={
+                "scenario": "human_review",
+                "source": "langgraph_example",
+                "client_trace_id": "t1",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["decision"], "needs_review")
+        self.assertEqual(body["adapter_call_count"], 0)
+        self.assertIn("car_trace_id", body)
+        self.assertEqual(body["hitl_url"], "/")
+
+    def test_safe_auto_via_api(self) -> None:
+        response = self.client.post(
+            "/api/agent/propose",
+            json={"scenario": "safe_auto", "source": "test"},
+        )
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["decision"], "executed")
+        self.assertEqual(body["adapter_call_count"], 1)
+        self.assertEqual(body["outcome"], "executed")
+
+    def test_amount_mismatch_via_api(self) -> None:
+        response = self.client.post(
+            "/api/agent/propose",
+            json={"scenario": "amount_mismatch", "source": "test"},
+        )
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["decision"], "denied")
+        self.assertEqual(body["outcome"], "denied")
+        self.assertEqual(body["adapter_call_count"], 0)
+
+    def test_authority_attack_via_api(self) -> None:
+        response = self.client.post(
+            "/api/agent/propose",
+            json={"scenario": "authority_attack", "source": "test"},
+        )
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["decision"], "denied")
+        self.assertEqual(body["outcome"], "failed_closed")
+        self.assertEqual(body["adapter_call_count"], 0)
+
+    def test_unknown_scenario_via_api(self) -> None:
+        response = self.client.post(
+            "/api/agent/propose",
+            json={"scenario": "not_a_real_scenario", "source": "test"},
+        )
+        self.assertEqual(response.status_code, 400)
+        body = response.json()
+        self.assertEqual(body["decision"], "denied")
+        self.assertEqual(body["outcome"], "failed_closed")
+        self.assertEqual(body["reason_code"], "unknown_scenario")
+        self.assertEqual(body["adapter_call_count"], 0)
+
+    def test_protected_proposal_via_api(self) -> None:
+        response = self.client.post(
+            "/api/agent/propose",
+            json={
+                "scenario": "safe_auto",
+                "proposal": {"intent": "refund", "principal_id": "forged"},
+                "source": "test",
+            },
+        )
+        self.assertIn(response.status_code, (400, 409))
+        body = response.json()
+        self.assertEqual(body["decision"], "denied")
+        self.assertEqual(body["adapter_call_count"], 0)
+        self.assertIn("protected", body["reason_code"])
+
+
 if __name__ == "__main__":
     unittest.main()
+
