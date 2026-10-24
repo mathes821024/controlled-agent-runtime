@@ -21,7 +21,9 @@ from controlled_agent_runtime.demo.agent_ingress import (
     handle_agent_propose,
 )
 from controlled_agent_runtime.demo.app import create_app
-from controlled_agent_runtime.demo.scenarios import build_proposal_template_seed
+from controlled_agent_runtime.demo.synthetic_transactions import (
+    build_seed_from_authoritative_lookup,
+)
 
 SEED01_PROPOSAL = {
     "intent": "refund",
@@ -32,6 +34,23 @@ SEED01_PROPOSAL = {
     "requested_amount_minor": 10000,
     "merchant_email": "merchant-seed01@example.invalid",
 }
+
+SEED02_PROPOSAL = {
+    "intent": "refund",
+    "appid": "app_demo_001",
+    "term_id": "term_demo_002",
+    "original_order_no": "order_demo_002",
+    "original_transaction_date": "2026-09-01",
+    "requested_amount_minor": 10001,
+    "merchant_email": "merchant-seed02@example.invalid",
+}
+
+
+def _facts_loaded_summary(out: dict) -> str:
+    for item in out.get("evidence") or []:
+        if isinstance(item, dict) and item.get("name") == "authoritative_facts_loaded":
+            return str(item.get("summary") or "")
+    return ""
 
 
 class AgentIngressHandlerTests(unittest.TestCase):
@@ -123,7 +142,7 @@ class AgentIngressHandlerTests(unittest.TestCase):
         self.assertIsInstance(out["evidence_summary"], dict)
         self.assertIsNone(out.get("hitl_url"))
 
-    def test_proposal_only_without_scenario_uses_template_seed(self) -> None:
+    def test_a_proposal_only_binds_order_001(self) -> None:
         out = handle_agent_propose(
             AgentProposeRequest(
                 proposal=dict(SEED01_PROPOSAL),
@@ -135,9 +154,79 @@ class AgentIngressHandlerTests(unittest.TestCase):
         self.assertEqual(out["adapter_call_count"], 1)
         self.assertEqual(out["outcome"], "executed")
         self.assertFalse(out.get("scenario"))
+        self.assertIn("txn_demo_001", _facts_loaded_summary(out))
+        self.assertNotIn("txn_demo_002", _facts_loaded_summary(out))
+
+    def test_b_unknown_order_999_amount_10000_fail_closed(self) -> None:
+        proposal = {
+            "intent": "refund",
+            "appid": "app_demo_001",
+            "term_id": "term_demo_001",
+            "original_order_no": "order_demo_999",
+            "original_transaction_date": "2026-09-01",
+            "requested_amount_minor": 10000,
+            "merchant_email": "merchant-seed01@example.invalid",
+        }
+        with patch(
+            "controlled_agent_runtime.demo.agent_ingress.ReferenceRuntime.run_seed"
+        ) as mocked:
+            out = handle_agent_propose(
+                AgentProposeRequest(proposal=proposal, source="test")
+            )
+        mocked.assert_not_called()
+        self.assertEqual(out["decision"], "denied")
+        self.assertEqual(out["outcome"], "failed_closed")
+        self.assertEqual(out["reason_code"], "authoritative_facts_unavailable")
+        self.assertEqual(out["adapter_call_count"], 0)
+
+    def test_c_order_002_binds_seed_02_needs_review(self) -> None:
+        out = handle_agent_propose(
+            AgentProposeRequest(proposal=dict(SEED02_PROPOSAL), source="test")
+        )
+        self.assertEqual(out["decision"], "needs_review")
+        self.assertEqual(out["outcome"], "needs_review")
+        self.assertEqual(out["reason_code"], "demo_amount_threshold")
+        self.assertEqual(out["adapter_call_count"], 0)
+        self.assertEqual(out["hitl_url"], "/")
+        self.assertIn("txn_demo_002", _facts_loaded_summary(out))
+        self.assertNotIn("txn_demo_001", _facts_loaded_summary(out))
+
+    def test_d_cross_resource_coincidence_amount_is_not_identity(self) -> None:
+        proposal = {
+            "intent": "refund",
+            "appid": "app_demo_001",
+            "original_order_no": "order_demo_404",
+            "requested_amount_minor": 10000,
+            "merchant_email": "merchant-seed01@example.invalid",
+        }
+        with patch(
+            "controlled_agent_runtime.demo.agent_ingress.ReferenceRuntime.run_seed"
+        ) as mocked:
+            out = handle_agent_propose(
+                AgentProposeRequest(proposal=proposal, source="test")
+            )
+        mocked.assert_not_called()
+        self.assertEqual(out["outcome"], "failed_closed")
+        self.assertEqual(out["reason_code"], "authoritative_facts_unavailable")
+        self.assertEqual(out["adapter_call_count"], 0)
+
+    def test_e_locator_mismatch_order_appid_fail_closed(self) -> None:
+        proposal = dict(SEED01_PROPOSAL)
+        proposal["appid"] = "app_other_001"
+        with patch(
+            "controlled_agent_runtime.demo.agent_ingress.ReferenceRuntime.run_seed"
+        ) as mocked:
+            out = handle_agent_propose(
+                AgentProposeRequest(proposal=proposal, source="test")
+            )
+        mocked.assert_not_called()
+        self.assertEqual(out["decision"], "denied")
+        self.assertEqual(out["outcome"], "failed_closed")
+        self.assertEqual(out["reason_code"], "authoritative_lookup_mismatch")
+        self.assertEqual(out["adapter_call_count"], 0)
 
     def test_proposal_only_does_not_invent_scenario_name(self) -> None:
-        seed = build_proposal_template_seed(dict(SEED01_PROPOSAL))
+        seed = build_seed_from_authoritative_lookup(dict(SEED01_PROPOSAL))
         self.assertEqual(seed["seed_id"], "seed-01")
         self.assertNotIn("scenario", seed)
         out = handle_agent_propose(
@@ -333,6 +422,47 @@ class AgentIngressApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         body = response.json()
         self.assertEqual(body["reason_code"], "missing_scenario_or_proposal")
+        self.assertEqual(body["adapter_call_count"], 0)
+
+    def test_unknown_order_via_api(self) -> None:
+        response = self.client.post(
+            "/api/agent/propose",
+            json={
+                "proposal": {
+                    "intent": "refund",
+                    "appid": "app_demo_001",
+                    "original_order_no": "order_demo_999",
+                    "requested_amount_minor": 10000,
+                },
+                "source": "test",
+            },
+        )
+        self.assertEqual(response.status_code, 400)
+        body = response.json()
+        self.assertEqual(body["reason_code"], "authoritative_facts_unavailable")
+        self.assertEqual(body["adapter_call_count"], 0)
+        self.assertEqual(body["outcome"], "failed_closed")
+
+    def test_locator_mismatch_via_api(self) -> None:
+        proposal = dict(SEED01_PROPOSAL)
+        proposal["appid"] = "app_other_001"
+        response = self.client.post(
+            "/api/agent/propose",
+            json={"proposal": proposal, "source": "test"},
+        )
+        self.assertEqual(response.status_code, 400)
+        body = response.json()
+        self.assertEqual(body["reason_code"], "authoritative_lookup_mismatch")
+        self.assertEqual(body["adapter_call_count"], 0)
+
+    def test_order_002_via_api_needs_review(self) -> None:
+        response = self.client.post(
+            "/api/agent/propose",
+            json={"proposal": dict(SEED02_PROPOSAL), "source": "test"},
+        )
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["decision"], "needs_review")
         self.assertEqual(body["adapter_call_count"], 0)
 
     def test_proposal_only_protected_via_api(self) -> None:

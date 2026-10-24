@@ -48,7 +48,13 @@ def agent_propose_status(payload: dict[str, Any]) -> int:
     stay HTTP 200 like ``POST /api/demo/run``.
     """
     reason = str(payload.get("reason_code") or "")
-    if reason in {"unknown_scenario", "missing_scenario_or_proposal"}:
+    if reason in {
+        "unknown_scenario",
+        "missing_scenario_or_proposal",
+        "authoritative_facts_unavailable",
+        "authoritative_lookup_mismatch",
+        "authoritative_lookup_ambiguous",
+    }:
         return 400
     summary = payload.get("evidence_summary") or {}
     pre_runtime = isinstance(summary, dict) and summary.get("summary") == (

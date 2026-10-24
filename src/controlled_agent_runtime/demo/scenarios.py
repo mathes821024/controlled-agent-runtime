@@ -126,14 +126,16 @@ def build_seed_for_scenario(scenario: str) -> dict[str, Any]:
 
 
 def build_proposal_template_seed(sanitized_proposal: dict[str, Any]) -> dict[str, Any]:
-    """Trusted facts from refund-seed-01 plus an untrusted proposal overlay.
+    """Deprecated alias: proposal-only path now uses authoritative lookup.
 
-    Used when Ingress receives a non-empty proposal and no canned scenario.
-    Does not invent a scenario name as authority. Runtime / policy decide.
+    Kept so older tests can import the name. Binds the looked-up seed's
+    trusted facts, not a hardcoded seed-01 template.
     """
-    seed = copy.deepcopy(_load_seed("refund-seed-01.json"))
-    seed["proposal"] = dict(sanitized_proposal)
-    return seed
+    from controlled_agent_runtime.demo.synthetic_transactions import (
+        build_seed_from_authoritative_lookup,
+    )
+
+    return build_seed_from_authoritative_lookup(sanitized_proposal)
 
 
 def station_for_event(name: str, fallback: str = "adapter") -> str:

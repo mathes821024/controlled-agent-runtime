@@ -6,9 +6,10 @@ CAR remains HITL / policy / execution authority.
 Two ingress modes:
 
 - Demo / CI: optional canned ``scenario`` (four values unchanged).
-- Agent main path: non-empty ``proposal`` without ``scenario``. Trusted facts
-  come from the refund-seed-01 template; Runtime / policy decide. No fake
-  scenario name is invented as authority.
+- Agent main path: non-empty ``proposal`` without ``scenario``. After sanitize,
+  a synthetic authoritative lookup binds trusted_context / tool_fixtures from
+  the matching demo seed. Runtime / policy decide. No fake scenario name is
+  invented as authority.
 
 ``user_input`` is tracing-only and never authoritative.
 """
@@ -21,9 +22,12 @@ from typing import Any, Optional
 from pydantic import BaseModel, Field
 
 from controlled_agent_runtime.demo.scenarios import (
-    build_proposal_template_seed,
     build_seed_for_scenario,
     normalize_scenario,
+)
+from controlled_agent_runtime.demo.synthetic_transactions import (
+    AuthoritativeLookupError,
+    build_seed_from_authoritative_lookup,
 )
 from controlled_agent_runtime.observability import start_trace
 from controlled_agent_runtime.proposal_hook import (
@@ -159,7 +163,14 @@ def handle_agent_propose(body: AgentProposeRequest) -> dict[str, Any]:
                 seed = copy.deepcopy(seed)
                 seed["proposal"] = sanitized
         else:
-            seed = build_proposal_template_seed(sanitized or {})
+            try:
+                seed = build_seed_from_authoritative_lookup(sanitized or {})
+            except AuthoritativeLookupError as exc:
+                return _fail_closed(
+                    handle,
+                    scenario=None,
+                    reason_code=exc.reason_code,
+                )
 
         try:
             result = ReferenceRuntime().run_seed(seed)
