@@ -197,6 +197,8 @@ examples/agent_graph/chat_llm.py :: invoke_structured_proposal
 | `.[agent]` | `httpx>=0.27`, `langchain-core>=0.3`, `langchain-openai>=0.2`, `langgraph>=0.2` |
 
 `langfuse` is **not** added. `langchain-openai` is **[agent] only**.
+Resolved in this workspace when `.[agent]` is installed: `langchain-openai==1.7.2`
+(informational, not a lockfile).
 
 `langchain-core` may transitively install `langsmith`. Unused. No LangSmith
 product binding.
