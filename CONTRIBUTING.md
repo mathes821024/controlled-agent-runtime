@@ -9,7 +9,7 @@ that strengthen boundaries, tests, or documentation are preferred.
 2. State the trust boundary and failure mode affected.
 3. Add or update a synthetic seed for behavior changes.
 4. Add negative tests before or with the implementation.
-5. Run `make check` and `make test`.
+5. Run `make check` and `make test`. Use `make demo` only for the local HITL UI.
 6. Complete the pull-request safety checklist.
 
 Do not include secrets, private interface documents, raw production payloads,

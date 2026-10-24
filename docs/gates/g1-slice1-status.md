@@ -1,8 +1,8 @@
 # Gate 1 Slice 1 — Minimal In-Memory Reference Runtime
 
-**Status:** Ready for ChatGPT review (not merged)  
+**Status:** Merged to `main` (`ae59cfd`, Review Fix 01 `a755d17`). Synthetic local evidence only. Not an Owner Gate PASS and not production.  
 **Frozen Gate 0 baseline:** `bd7e183290b2b33b981847f24d50b2560f31c7fa`  
-**Branch:** `feat/g1-minimal-runtime`  
+**Branch:** `feat/g1-minimal-runtime` (merged)  
 **Evidence date:** 2026-10-10
 **Review Fix 01:** missing mock dependency fail-closed; layered business
 success proof; evidence order aligned with reserve; failed executions release
@@ -26,7 +26,9 @@ seed-01 / seed-02 / seed-03 real runtime conformance tests.
 
 ## Out of scope (unchanged)
 
-HTTP/UI/DB/Redis/real payment/LLM/LangGraph/OAuth/JWT/HITL service/deploy.
+DB/Redis/real payment/LLM/LangGraph/OAuth/JWT/HITL service/Gate 5 deploy.
+Slice 2 later added a **local** FastAPI Human Acceptance UI; it is still
+synthetic, loopback-oriented, and not a production HTTP product.
 
 ## Open questions
 

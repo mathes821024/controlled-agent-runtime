@@ -17,6 +17,11 @@ from controlled_agent_runtime.demo.scenarios import (
     normalize_scenario,
     stop_station_from_evidence,
 )
+from controlled_agent_runtime.proposal_hook import (
+    ProposalHookError,
+    resolve_proposal_hook_mode,
+    run_proposal_hook,
+)
 from controlled_agent_runtime.runtime import ReferenceRuntime
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -25,6 +30,10 @@ UI_DIR = ROOT / "docs" / "ui" / "prototype"
 
 class RunRequest(BaseModel):
     scenario: str = Field(..., min_length=1, max_length=64)
+
+
+class ProposeRequest(BaseModel):
+    text: str = Field(..., min_length=1, max_length=2000)
 
 
 def serialize_result(scenario: str, result: Any) -> dict[str, Any]:
@@ -66,7 +75,38 @@ def create_app() -> FastAPI:
 
     @app.get("/api/health")
     def health() -> dict[str, str]:
-        return {"status": "ok", "mode": "synthetic_only", "real_adapters": "disabled"}
+        hook = "off"
+        try:
+            hook = resolve_proposal_hook_mode()
+        except ProposalHookError as exc:
+            hook = exc.reason_code
+        return {
+            "status": "ok",
+            "mode": "synthetic_only",
+            "real_adapters": "disabled",
+            "proposal_hook": hook,
+            "llm": "disabled",
+        }
+
+    @app.post("/api/demo/propose")
+    def propose(body: ProposeRequest) -> Any:
+        result = run_proposal_hook(body.text)
+        status = 409
+        if result.reason_code.startswith("unknown_proposal_hook_mode"):
+            status = 400
+        elif result.reason_code == "local_model_unavailable_no_download":
+            status = 503
+        return JSONResponse(
+            status_code=status,
+            content={
+                "outcome": "failed_closed",
+                "reason_code": result.reason_code,
+                "proposal": result.proposal,
+                "hook": result.mode,
+                "download_attempted": result.download_attempted,
+                "message": "Proposal hook is optional and offline by default.",
+            },
+        )
 
     @app.post("/api/demo/run")
     def run_demo(body: RunRequest) -> Any:

@@ -1,7 +1,11 @@
 # G1 Slice 2 — Human Acceptance UI × ReferenceRuntime
 
-**Branch:** `feat/g1-human-runtime-ui`  
-**Mode:** synthetic only · real adapters disabled · local only
+**Status:** Merged to `main` (`a539ea4`). Synthetic local evidence only.  
+**Branch:** `feat/g1-human-runtime-ui` (merged)  
+**Mode:** synthetic only · real adapters disabled · loopback by default
+
+On a tiny CPU VPS see [2GB VPS quickstart](../ops/2gb-vps-quickstart.md). Do not
+bind `0.0.0.0` without a reverse proxy and an explicit `--allow-public-bind`.
 
 ## Start
 

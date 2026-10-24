@@ -11,10 +11,11 @@ Every seed sets:
 expectation_kind = future_conformance_expectation
 ```
 
-That means the seed describes what a **future** Runtime must produce for the
-given inputs and authoritative fixtures. It is **not** evidence that this
-repository has already executed a Runtime path. Local `make check` / `make test`
-only prove static contract invariants.
+That field is the Gate 0 contract label: the JSON describes the expected
+control-plane trace. Gate 1 Slice 1 now also has a **local** `ReferenceRuntime`
+that executes these seeds in-process (`make test`). That is local conformance
+evidence. It is still **not** integration or production evidence, and it does
+not close an Owner gate.
 
 ## Current seeds
 

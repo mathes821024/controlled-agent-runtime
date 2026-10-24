@@ -1,0 +1,19 @@
+# Optional demo packaging. Not a Gate 5 profile.
+# Host publish is loopback-only. The process has no authentication.
+# Do not change ports to 0.0.0.0:8000:8000 on a public VPS.
+
+services:
+  hitl-demo:
+    build:
+      context: ../..
+      dockerfile: deploy/demo/Dockerfile
+    environment:
+      CAR_PROPOSAL_HOOK: "off"
+    ports:
+      - "127.0.0.1:8000:8000"
+    restart: unless-stopped
+    mem_limit: 256m
+    pids_limit: 64
+    read_only: true
+    tmpfs:
+      - /tmp

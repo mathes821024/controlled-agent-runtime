@@ -27,6 +27,8 @@ class DemoApiTests(unittest.TestCase):
         body = response.json()
         self.assertEqual(body["status"], "ok")
         self.assertEqual(body["real_adapters"], "disabled")
+        self.assertEqual(body["proposal_hook"], "off")
+        self.assertEqual(body["llm"], "disabled")
 
     def test_safe_auto_executed(self) -> None:
         response = self.client.post("/api/demo/run", json={"scenario": "safe_auto"})
@@ -100,6 +102,46 @@ class DemoApiTests(unittest.TestCase):
         self.assertEqual(body["adapter_call_count"], 0)
         self.assertNotEqual(body["outcome"], "executed")
         self.assertEqual(body["ui"]["source"], "error")
+
+    def test_propose_hook_disabled_by_default(self) -> None:
+        response = self.client.post(
+            "/api/demo/propose",
+            json={"text": "please refund order_demo_001"},
+        )
+        self.assertEqual(response.status_code, 409)
+        body = response.json()
+        self.assertEqual(body["outcome"], "failed_closed")
+        self.assertEqual(body["reason_code"], "proposal_hook_disabled")
+        self.assertIsNone(body["proposal"])
+        self.assertFalse(body["download_attempted"])
+
+    def test_run_stays_deterministic_when_hook_reserved(self) -> None:
+        import os
+        from unittest.mock import patch
+
+        with patch.dict(os.environ, {"CAR_PROPOSAL_HOOK": "local_model"}, clear=False):
+            response = self.client.post("/api/demo/run", json={"scenario": "safe_auto"})
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["outcome"], "executed")
+        self.assertEqual(body["adapter_call_count"], 1)
+        self.assertEqual(body["ui"]["source"], "ReferenceRuntime")
+
+    def test_propose_local_model_does_not_download(self) -> None:
+        import os
+        from unittest.mock import patch
+
+        with patch.dict(os.environ, {"CAR_PROPOSAL_HOOK": "local_model"}, clear=False):
+            response = self.client.post(
+                "/api/demo/propose",
+                json={"text": "please refund order_demo_001"},
+            )
+        self.assertEqual(response.status_code, 503)
+        body = response.json()
+        self.assertEqual(body["outcome"], "failed_closed")
+        self.assertEqual(body["reason_code"], "local_model_unavailable_no_download")
+        self.assertFalse(body["download_attempted"])
+        self.assertIsNone(body["proposal"])
 
 if __name__ == "__main__":
     unittest.main()

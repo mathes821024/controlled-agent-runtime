@@ -1,6 +1,8 @@
 # Repository instructions
 
-This repository is at Gate 0 / Inception.
+This repository began at Gate 0 / Inception. `main` also contains a Gate 1
+Slice 1 in-memory reference runtime and a Slice 2 Human Acceptance UI. Those
+are synthetic local evidence. They do not authorize production execution.
 
 - Preserve the boundary between untrusted proposals and authoritative facts.
 - Keep policy deterministic, versioned, and testable.
