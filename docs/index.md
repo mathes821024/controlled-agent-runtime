@@ -24,6 +24,7 @@
 ## Architecture and governance
 
 - [Runtime contract](architecture/runtime-contract.md)
+- [Design: Agent stack + HITL thin ingress](superpowers/specs/2026-10-24-agent-hitl-thin-ingress-design.md)
 - [ADR-0001: authority separation](adr/0001-separate-proposal-from-authority.md)
 - [ADR-0002: fail closed](adr/0002-fail-closed-by-default.md)
 - [Engineering governance](governance/engineering-governance.md)
