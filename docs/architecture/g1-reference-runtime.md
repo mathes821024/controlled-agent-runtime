@@ -37,3 +37,6 @@ proposal_received
 - `evidence.py` — ordered events
 - `idempotency.py` — in-memory reservation
 - `adapters/mock_refund.py` — synthetic adapter
+- `proposal_hook.py` — optional, default-off stub. Reserved `local_model`
+  mode fail-closes and never downloads weights. The canned-seed demo does
+  not use it.

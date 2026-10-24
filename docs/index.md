@@ -10,6 +10,17 @@
 - [Extraction source register](inception/05-extraction-source.md)
 - [Open questions](inception/06-open-questions.md)
 
+## Gate 1 (synthetic reference on `main`)
+
+- [Slice 1 — reference runtime](gates/g1-slice1-status.md)
+- [Slice 2 — Human Acceptance UI](gates/g1-slice2-human-ui.md)
+- [Reference runtime architecture](architecture/g1-reference-runtime.md)
+- [Human Acceptance UI note](ui/g1-human-acceptance-ui.md)
+
+## Operations (demo only)
+
+- [2GB VPS quickstart](ops/2gb-vps-quickstart.md) — loopback HITL demo, no LLM
+
 ## Architecture and governance
 
 - [Runtime contract](architecture/runtime-contract.md)

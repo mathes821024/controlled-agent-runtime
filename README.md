@@ -2,18 +2,24 @@
 
 An evidence-first, policy-driven control plane for AI-assisted actions.
 
-> **Project state:** Gate 0 / Inception. This repository currently defines contracts,
-> policy examples, synthetic demo seeds, and engineering governance. It does **not**
-> contain a production-ready action runtime or authorize real-world execution.
+> **Project state:** Gate 0 contracts plus a Gate 1 **reference** path on `main`:
+> an in-memory `ReferenceRuntime` (Slice 1) and a local Human Acceptance UI
+> (Slice 2). This is **not** a production action runtime and does **not**
+> authorize real-world execution, real payments, or a public launch.
 
 [中文说明](README.zh-CN.md) · [Inception index](docs/inception/00-overview.md) ·
+[2GB VPS quickstart](docs/ops/2gb-vps-quickstart.md) ·
 [Policy format](policy/README.md) · [Demo seeds](demo-seeds/README.md)
 
 ## Why this exists
 
 AI models are useful for understanding intent and proposing structured inputs, but
 they should not silently become the authority for identity, business facts,
-approval, idempotency, or side effects. Controlled Agent Runtime separates:
+approval, idempotency, or side effects. The first concrete pain point is
+**financial refund / payment control**: a model may draft a refund proposal; it
+must not invent identity, amounts, approval, or adapter success.
+
+Controlled Agent Runtime separates:
 
 1. **Proposal** — a model or UI proposes intent and non-authoritative fields.
 2. **Authority** — trusted context, tools, and human reviewers establish facts.
@@ -42,25 +48,44 @@ revalidate + authorize + idempotency
 allowlisted adapter ---> normalized result + audit evidence
 ```
 
-## Gate 0 deliverables
+The private sibling `payment-controlled-agent` was an extraction source only.
+This public repository is the open-source story: rewritten contracts, synthetic
+data, and a small reference runtime. It does not copy private adapters or
+payloads.
 
-- Project charter, scope, trust boundaries, gate model, extraction register, and
-  open questions under [`docs/inception/`](docs/inception/).
-- A versioned, machine-readable policy contract and synthetic example under
-  [`policy/`](policy/).
-- A schema-backed synthetic refund example under [`demo-seeds/`](demo-seeds/). Seeds are `future_conformance_expectation` vectors, not proof that a Runtime already executed.
-- Architecture Decision Records (ADRs), engineering governance, security policy,
-  contribution guide, and public-release checklist.
-- A dependency-free validation command and CI workflow for repository contracts.
+## What is on main today
 
-## Quick validation
+| Layer | Status | Evidence |
+|---|---|---|
+| Gate 0 contracts, policy, seeds, governance | On `main` | static (`make check`) |
+| Gate 1 Slice 1 `ReferenceRuntime` | On `main`, synthetic | local tests (`make test`) |
+| Gate 1 Slice 2 Human Acceptance UI | On `main`, loopback FastAPI | local demo (`make demo`) |
+| Real adapters, persistence, auth, production deploy | **Out of scope** | not claimed |
 
-Requires Python 3.11+ and makes no network calls.
+Owner Gate PASS / Frozen for Gate 0 and later gates remain human decisions.
+Passing tests does not close a gate.
+
+## Quick start (laptop or tiny VPS)
+
+Requires Python 3.11+. The default demo is **offline and deterministic**. It
+does not download a model and fits a ~2GB RAM CPU VPS.
 
 ```bash
-python3 scripts/validate_repository.py
-python3 -m unittest discover -s tests -v
+make check          # contract validation, no extra deps
+make test           # installs .[demo] into .venv, then tests
+make demo           # http://127.0.0.1:8000  (refuses 0.0.0.0 unless opted in)
 ```
+
+Open the UI and run the four scenarios. Outcomes come from `ReferenceRuntime`,
+not from canned frontend success.
+
+On a small VPS, bind loopback and use an SSH tunnel (or TLS + basic auth in
+front). Do not publish port 8000 on a public NIC. One-pager:
+[docs/ops/2gb-vps-quickstart.md](docs/ops/2gb-vps-quickstart.md).
+
+An optional `CAR_PROPOSAL_HOOK=local_model` stub exists for a later small
+on-box model. Default is `off`; enabling the reserved mode **fail-closes** and
+never pulls weights.
 
 ## Safety boundary
 
@@ -69,13 +94,13 @@ python3 -m unittest discover -s tests -v
   configuration.
 - Model output is never an authoritative source for protected fields.
 - Unavailable or malformed dependencies fail closed.
-- A passing demo is design evidence, not production or integration evidence.
+- A passing demo is local design evidence, not production or integration evidence.
 
 ## Roadmap
 
-The next gate may implement a minimal in-memory reference runtime after the open
-questions and Gate 0 exit criteria are accepted. Database adapters, real business
-connectors, deployment, and production authorization remain separate decisions.
+Persistence, authenticated HITL, real adapters, and a Gate 5 deployment profile
+remain separate reviewed decisions. Optional demo packaging under `deploy/demo/`
+is host documentation for the loopback UI, not production authorization.
 
 ## License
 

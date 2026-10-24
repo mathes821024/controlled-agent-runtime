@@ -1,0 +1,21 @@
+# Example only. Replace the hostname. Do not commit real certs or hashes.
+# Put this in front of the loopback demo. The demo itself has no auth.
+#
+#   caddy run --config deploy/demo/Caddyfile.example
+#
+# Set CADDY_DEMO_HASH from a local env file that is not in git:
+#   caddy hash-password
+#
+# Opening 80/443 still needs a hostname you control and a firewall that
+# does not expose uvicorn's 8000.
+
+{
+	email admin@example.invalid
+}
+
+hitl.example.invalid {
+	reverse_proxy 127.0.0.1:8000
+	basicauth {
+		demo {$CADDY_DEMO_HASH}
+	}
+}

@@ -1,0 +1,37 @@
+# Synthetic Human Acceptance demo only.
+# Not a production unit. No secrets. Bind loopback.
+#
+# Install (after creating a non-root user and a checkout):
+#   sudo cp deploy/demo/controlled-agent-demo.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now controlled-agent-demo
+#
+# Replace WorkingDirectory and ExecStart if the checkout is not
+# /opt/controlled-agent-runtime.
+
+[Unit]
+Description=Controlled Agent Runtime HITL demo (synthetic only)
+Documentation=https://github.com/mathes821024/controlled-agent-runtime
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=car-demo
+Group=car-demo
+WorkingDirectory=/opt/controlled-agent-runtime
+Environment=CAR_PROPOSAL_HOOK=off
+Environment=CAR_DEMO_HOST=127.0.0.1
+Environment=CAR_DEMO_PORT=8000
+EnvironmentFile=-/etc/controlled-agent-runtime/demo.env
+ExecStart=/opt/controlled-agent-runtime/.venv/bin/python -m controlled_agent_runtime.demo --host 127.0.0.1 --port 8000
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+ProtectHome=yes
+MemoryMax=256M
+
+[Install]
+WantedBy=multi-user.target
