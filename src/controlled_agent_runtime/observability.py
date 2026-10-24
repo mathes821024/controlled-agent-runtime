@@ -1,9 +1,30 @@
 """Internal observability tracer.
 
-JSONL is the guaranteed sink. Langfuse is optional and never imported unless
-``CAR_LANGFUSE_PUBLIC_KEY``, ``CAR_LANGFUSE_SECRET_KEY``, and
-``CAR_LANGFUSE_HOST`` are all set. Incomplete env or a failed import stays
-JSONL-only and does not raise.
+JSONL is the guaranteed sink. Langfuse is optional and is never imported
+unless a complete credential set is present.
+
+Official env names (preferred, used when calling the current SDK):
+
+- ``LANGFUSE_PUBLIC_KEY``
+- ``LANGFUSE_SECRET_KEY``
+- ``LANGFUSE_BASE_URL``
+
+CAR aliases (mapped onto the official names when official values are empty):
+
+- ``CAR_LANGFUSE_PUBLIC_KEY``
+- ``CAR_LANGFUSE_SECRET_KEY``
+- ``CAR_LANGFUSE_BASE_URL`` or legacy ``CAR_LANGFUSE_HOST``
+
+When env is complete the current Langfuse API is used
+(``from langfuse import get_client`` then
+``get_client().start_as_current_observation(as_type="span", name=...)`` as a
+context manager, and ``flush()`` on end). Target the current major that
+exposes ``get_client`` (Langfuse Python v3+ / v4 OpenTelemetry). ``langfuse``
+is not a ``.[demo]`` dependency.
+
+Incomplete env, a missing package, or any Langfuse exception stays JSONL-only
+and never raises into CAR. Langfuse is an observability sink only — never
+Policy, Approval, or Execution.
 """
 
 from __future__ import annotations
@@ -15,9 +36,13 @@ from pathlib import Path
 from typing import Any, Mapping
 
 ENV_TRACE_JSONL = "CAR_TRACE_JSONL"
-ENV_LANGFUSE_PUBLIC_KEY = "CAR_LANGFUSE_PUBLIC_KEY"
-ENV_LANGFUSE_SECRET_KEY = "CAR_LANGFUSE_SECRET_KEY"
-ENV_LANGFUSE_HOST = "CAR_LANGFUSE_HOST"
+ENV_LANGFUSE_PUBLIC_KEY = "LANGFUSE_PUBLIC_KEY"
+ENV_LANGFUSE_SECRET_KEY = "LANGFUSE_SECRET_KEY"
+ENV_LANGFUSE_BASE_URL = "LANGFUSE_BASE_URL"
+ENV_CAR_LANGFUSE_PUBLIC_KEY = "CAR_LANGFUSE_PUBLIC_KEY"
+ENV_CAR_LANGFUSE_SECRET_KEY = "CAR_LANGFUSE_SECRET_KEY"
+ENV_CAR_LANGFUSE_BASE_URL = "CAR_LANGFUSE_BASE_URL"
+ENV_CAR_LANGFUSE_HOST = "CAR_LANGFUSE_HOST"
 DEFAULT_JSONL_RELATIVE = Path("var/car-traces.jsonl")
 
 
@@ -35,41 +60,74 @@ def resolve_jsonl_path(jsonl_path: str | Path | None = None) -> Path:
     return Path.cwd() / DEFAULT_JSONL_RELATIVE
 
 
-def _langfuse_config(
+def _first_nonempty(env: Mapping[str, str], *keys: str) -> str:
+    for key in keys:
+        value = str(env.get(key, "") or "").strip()
+        if value:
+            return value
+    return ""
+
+
+def resolve_langfuse_config(
     environ: Mapping[str, str] | None = None,
 ) -> dict[str, str] | None:
+    """Return official Langfuse credentials, or None when incomplete.
+
+    Official names win when both official and ``CAR_LANGFUSE_*`` are set.
+    """
     env = os.environ if environ is None else environ
-    public_key = str(env.get(ENV_LANGFUSE_PUBLIC_KEY, "") or "").strip()
-    secret_key = str(env.get(ENV_LANGFUSE_SECRET_KEY, "") or "").strip()
-    host = str(env.get(ENV_LANGFUSE_HOST, "") or "").strip()
-    if not public_key or not secret_key or not host:
+    public_key = _first_nonempty(
+        env, ENV_LANGFUSE_PUBLIC_KEY, ENV_CAR_LANGFUSE_PUBLIC_KEY
+    )
+    secret_key = _first_nonempty(
+        env, ENV_LANGFUSE_SECRET_KEY, ENV_CAR_LANGFUSE_SECRET_KEY
+    )
+    base_url = _first_nonempty(
+        env,
+        ENV_LANGFUSE_BASE_URL,
+        ENV_CAR_LANGFUSE_BASE_URL,
+        ENV_CAR_LANGFUSE_HOST,
+    )
+    if not public_key or not secret_key or not base_url:
         return None
     return {
         "public_key": public_key,
         "secret_key": secret_key,
-        "host": host,
+        "base_url": base_url,
     }
+
+
+def _apply_official_langfuse_env(config: Mapping[str, str]) -> None:
+    """Expose credentials under official names so ``get_client()`` can read them."""
+    mapping = {
+        ENV_LANGFUSE_PUBLIC_KEY: config["public_key"],
+        ENV_LANGFUSE_SECRET_KEY: config["secret_key"],
+        ENV_LANGFUSE_BASE_URL: config["base_url"],
+    }
+    for key, value in mapping.items():
+        if not str(os.environ.get(key, "") or "").strip():
+            os.environ[key] = value
 
 
 def _try_langfuse_client(
     environ: Mapping[str, str] | None = None,
 ) -> Any | None:
-    """Import Langfuse only when env is complete. Never raise."""
-    config = _langfuse_config(environ)
+    """Import current Langfuse only when env is complete. Never raise."""
+    config = resolve_langfuse_config(environ)
     if config is None:
         return None
     try:
-        from langfuse import Langfuse
+        _apply_official_langfuse_env(config)
+        from langfuse import get_client
     except Exception:
         return None
     try:
-        return Langfuse(
-            public_key=config["public_key"],
-            secret_key=config["secret_key"],
-            host=config["host"],
-        )
+        client = get_client()
     except Exception:
         return None
+    if client is None:
+        return None
+    return client
 
 
 class TraceHandle:
@@ -120,20 +178,20 @@ class TraceHandle:
         client = self._langfuse
         if client is None:
             return
-        payload = dict(fields)
         try:
-            if event == "start" and hasattr(client, "trace"):
-                client.trace(
-                    id=self.car_trace_id,
-                    name=name,
-                    metadata=payload,
-                )
-            elif event == "span" and hasattr(client, "span"):
-                client.span(
-                    trace_id=self.car_trace_id,
-                    name=name,
-                    metadata=payload,
-                )
+            start = getattr(client, "start_as_current_observation", None)
+            if not callable(start):
+                return
+            with start(as_type="span", name=name) as observation:
+                update = getattr(observation, "update", None)
+                if callable(update):
+                    payload = {
+                        "event": event,
+                        "car_trace_id": self.car_trace_id,
+                        "client_trace_id": self.client_trace_id,
+                        **dict(fields),
+                    }
+                    update(metadata=payload)
         except Exception:
             return
 
