@@ -87,6 +87,30 @@ An optional `CAR_PROPOSAL_HOOK=local_model` stub exists for a later small
 on-box model. Default is `off`; enabling the reserved mode **fail-closes** and
 never pulls weights.
 
+## Agent ingress (optional)
+
+A small LangChain / LangGraph **example** can submit a non-authoritative
+proposal to `POST /api/agent/propose`. **CAR decides** (policy, HITL, mock
+adapter). Primary CLI is `--user-input` (no scenario).
+`CAR_AGENT_LLM=stub` is CI / offline only — **not** the Agent demo claim.
+`CAR_AGENT_LLM=local` uses LangChain `ChatOpenAI` structured output against
+an OpenAI-compatible endpoint you already run. Traces are JSONL by default.
+Optional Langfuse uses the current `get_client()` API.
+`langfuse` is not a `.[demo]` dependency. This is local / integration
+evidence, **not** production.
+
+```bash
+make demo
+make agent-example USER_INPUT='Please refund order_demo_001 for 100.00'   # stub CI
+CAR_AGENT_LLM=local CAR_AGENT_LLM_MODEL=llama3.2 make agent-example \
+  USER_INPUT='帮我退一下订单 order_demo_001，金额 100 元。'
+```
+
+Core `make test` does not install `.[agent]`. One-pager:
+[docs/ops/agent-graph-quickstart.md](docs/ops/agent-graph-quickstart.md).
+On a VPS that already proxies `/hitl/` to uvicorn root, the public path is
+`http://HOST/hitl/api/agent/propose`. Do not open port 8000.
+
 ## Safety boundary
 
 - Synthetic data only; reserved `.invalid` email domains are used in examples.

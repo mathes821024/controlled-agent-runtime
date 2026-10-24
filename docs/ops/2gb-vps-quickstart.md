@@ -83,6 +83,9 @@ curl -sS http://127.0.0.1:8000/api/health
 
 Then `POST /api/demo/run` with `{"scenario":"safe_auto"}` or open the UI through a tunnel.
 
+The same loopback origin also serves optional Ingress: `POST /api/agent/propose`.
+See [agent-graph-quickstart.md](agent-graph-quickstart.md).
+
 ## 3. Expose the UI safely
 
 **Preferred: SSH tunnel** from the operator laptop. Leave security-group / firewall at SSH only (port 22). Do not open 8000 to `0.0.0.0/0`.
@@ -98,6 +101,12 @@ Open `http://127.0.0.1:8000` on the laptop. Replace `USER@VPS_HOST` with the acc
 **Do not** run a naked `python -m ... --host 0.0.0.0` as root on a public NIC. That publishes an unauthenticated control-plane UI.
 
 Alibaba Cloud security group: allow 22 (and 80/443 only if you added a proxy). Do not allow 8000.
+
+If nginx already strips `/hitl/` to the uvicorn root (same location as the UI),
+the **public** Ingress URL is `http://HOST/hitl/api/agent/propose`. Keep
+uvicorn on `127.0.0.1:8000`. **Do not open port 8000.** From the box, curl
+`http://127.0.0.1:8000/api/agent/propose`. Details:
+[agent-graph-quickstart.md](agent-graph-quickstart.md).
 
 ## 4. Optional systemd
 

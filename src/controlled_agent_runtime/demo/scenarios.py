@@ -125,6 +125,19 @@ def build_seed_for_scenario(scenario: str) -> dict[str, Any]:
     raise KeyError(scenario)
 
 
+def build_proposal_template_seed(sanitized_proposal: dict[str, Any]) -> dict[str, Any]:
+    """Deprecated alias: proposal-only path now uses authoritative lookup.
+
+    Kept so older tests can import the name. Binds the looked-up seed's
+    trusted facts, not a hardcoded seed-01 template.
+    """
+    from controlled_agent_runtime.demo.synthetic_transactions import (
+        build_seed_from_authoritative_lookup,
+    )
+
+    return build_seed_from_authoritative_lookup(sanitized_proposal)
+
+
 def station_for_event(name: str, fallback: str = "adapter") -> str:
     return EVENT_STATION.get(name, fallback)
 
