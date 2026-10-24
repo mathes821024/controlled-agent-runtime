@@ -22,3 +22,19 @@ make demo
 ```
 
 默认只监听回环。VPS 上请用 SSH 隧道或本机反向代理，不要把 8000 裸开到公网，也不要在 2GB 机器上安装大模型。
+
+## 可选：Agent 接入（thin ingress）
+
+LangChain / LangGraph **示例**只能向 `POST /api/agent/propose` 提交非权威提案。
+**由 CAR 做决定**（策略、人工审核、模拟适配器）。默认是 Langfuse 形状的本地
+JSONL 追踪。这是本地 / 集成设计证据，**不是**生产授权。
+
+```bash
+make demo
+make agent-example SCENARIO=safe_auto
+```
+
+核心 `make test` 不安装 `.[agent]`。一页纸：
+[docs/ops/agent-graph-quickstart.md](docs/ops/agent-graph-quickstart.md)。
+若 VPS 上已有把 `/hitl/` 反代到 uvicorn 根路径的配置，公网入口是
+`http://HOST/hitl/api/agent/propose`。不要开放 8000 端口。

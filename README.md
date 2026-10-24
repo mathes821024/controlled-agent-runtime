@@ -87,6 +87,23 @@ An optional `CAR_PROPOSAL_HOOK=local_model` stub exists for a later small
 on-box model. Default is `off`; enabling the reserved mode **fail-closes** and
 never pulls weights.
 
+## Agent ingress (optional)
+
+A small LangChain / LangGraph **example** can submit a non-authoritative
+proposal to `POST /api/agent/propose`. **CAR decides** (policy, HITL, mock
+adapter). Traces are Langfuse-shaped JSONL by default. This is local /
+integration evidence, **not** production.
+
+```bash
+make demo
+make agent-example SCENARIO=safe_auto
+```
+
+Core `make test` does not install `.[agent]`. One-pager:
+[docs/ops/agent-graph-quickstart.md](docs/ops/agent-graph-quickstart.md).
+On a VPS that already proxies `/hitl/` to uvicorn root, the public path is
+`http://HOST/hitl/api/agent/propose`. Do not open port 8000.
+
 ## Safety boundary
 
 - Synthetic data only; reserved `.invalid` email domains are used in examples.

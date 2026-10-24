@@ -20,6 +20,7 @@
 ## Operations (demo only)
 
 - [2GB VPS quickstart](ops/2gb-vps-quickstart.md) — loopback HITL demo, no LLM
+- [Agent graph + thin ingress](ops/agent-graph-quickstart.md) — optional stub proposes; CAR decides; do not open port 8000
 
 ## Architecture and governance
 
